@@ -1,0 +1,41 @@
+[
+  {
+    "name": "Baltic Wolves",
+    "flag": "🇱🇹",
+    "countryName": "Lithuania",
+    "region": "EEU",
+    "rating": 1842,
+    "wins": 24,
+    "losses": 6,
+    "winRate": "80%",
+    "movement": "+3",
+    "status": "active",
+    "lastActive": "2 days ago"
+  },
+  {
+    "name": "Desert Falcons",
+    "flag": "🇸🇦",
+    "countryName": "Saudi Arabia",
+    "region": "MENA",
+    "rating": 1794,
+    "wins": 20,
+    "losses": 8,
+    "winRate": "71%",
+    "movement": "-1",
+    "status": "active",
+    "lastActive": "1 day ago"
+  },
+  {
+    "name": "Vindex EU",
+    "flag": "🇪🇺",
+    "countryName": "Europe",
+    "region": "WEU",
+    "rating": 1710,
+    "wins": 18,
+    "losses": 11,
+    "winRate": "62%",
+    "movement": "0",
+    "status": "active",
+    "lastActive": "3 hours ago"
+  }
+]
