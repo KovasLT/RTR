@@ -1,26 +1,10 @@
 [
   {
-    "name": "Medeina",
-    "flag": "🇱🇹",
-    "countryCode": "LT",
-    "team": "Baltic Wolves",
-    "rating": 1932,
-    "movement": "+5"
-  },
-  {
-    "name": "Jan",
-    "flag": "🇵🇱",
-    "countryCode": "PL",
-    "team": "Eastern Legion",
-    "rating": 1898,
-    "movement": "+2"
-  },
-  {
-    "name": "Kovas",
-    "flag": "🇱🇹",
-    "countryCode": "LT",
-    "team": "Vindex EU",
-    "rating": 1812,
-    "movement": "-3"
+    "name": "Player1",
+    "flag": "EU",
+    "role": "Clash",
+    "team": "TeamA",
+    "rating": 1200,
+    "movement": "-"
   }
 ]

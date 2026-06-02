@@ -43,11 +43,11 @@ function switchTab(tabId) {
 // Global Core Asynchronous Data Fetch Handler Orchestrator
 async function loadApplicationDataStructure() {
     try {
-        // 1. Fetch data safely (Note the relative path without a leading slash for GitHub Pages)
-        let responseTeams = await fetch('data/teams.json').then(res => res.json()).catch(() => null);
-        let responsePlayers = await fetch('data/players.json').then(res => res.json()).catch(() => null);
+        // Fetch data safely, defaulting to empty arrays if the file is missing/fails
+        let responseTeams = await fetch('data/teams.json').then(res => res.json()).catch(() => []);
+        let responsePlayers = await fetch('data/players.json').then(res => res.json()).catch(() => []);
 
-        // 2. Defensive Check: If the JSON is wrapped in an object structure like { "teams": [...] }
+        // Defensive Check: If the JSON is wrapped in an object structure like { "teams": [...] }
         if (responseTeams && !Array.isArray(responseTeams) && responseTeams.teams) {
             responseTeams = responseTeams.teams;
         }
@@ -55,17 +55,15 @@ async function loadApplicationDataStructure() {
             responsePlayers = responsePlayers.players;
         }
 
-        // 3. Absolute Insurance: If fetch failed or structure is wrong, use local fallbacks
-        if (!Array.isArray(responseTeams)) responseTeams = getLocalTeamsMockFallback();
-        if (!Array.isArray(responsePlayers)) responsePlayers = getLocalPlayersMockFallback();
-
         // Process data sorting by absolute algorithmic rating values descending
         allTeams = responseTeams.sort((a, b) => b.rating - a.rating);
         allPlayers = responsePlayers.sort((a, b) => b.rating - a.rating);
 
-        // Calculate home layout metric values
-        document.getElementById('stat-teams').innerText = allTeams.length;
-        document.getElementById('stat-players').innerText = allPlayers.length;
+        // Calculate home layout metric values (ensure elements exist before updating)
+        const statTeamsEl = document.getElementById('stat-teams');
+        const statPlayersEl = document.getElementById('stat-players');
+        if (statTeamsEl) statTeamsEl.innerText = allTeams.length;
+        if (statPlayersEl) statPlayersEl.innerText = allPlayers.length;
 
         // Render runtime arrays to DOM views
         renderRegionFilters();
@@ -76,6 +74,7 @@ async function loadApplicationDataStructure() {
         console.error("Critical error mapping platform core arrays:", dataProcessError);
     }
 }
+
 
 // Generate Regional Context Active Filtering System Row
 function renderRegionFilters() {
@@ -130,13 +129,16 @@ function renderTeamsLeaderboard() {
         if (team.status === 'active') statusMarkerStyle = 'bg-emerald-500 animate-pulse';
         else if (team.status === 'inactive') statusMarkerStyle = 'bg-amber-500';
 
+        // Ensure flag data exists, default to 'un' (United Nations/Unknown) if missing
+        const flagCode = team.flag ? team.flag.toLowerCase() : 'un';
+
         tbody.innerHTML += `
-        <tr class="rtr-table-row">
+        <tr class="rtr-table-row hover:bg-slate-900/40 transition">
         <td class="px-6 py-4 font-bold text-slate-400 font-mono">${analyticalRankCount++}</td>
         <td class="px-6 py-4 text-center text-xs">${getTrendTemplate(team.movement)}</td>
         <td class="px-6 py-4">
         <div class="flex items-center space-x-2.5">
-        <span class="text-base" title="${team.countryName}">${team.flag}</span>
+        <img src="https://flagcdn.com/${flagCode}.svg" width="20" class="rounded-[2px] shadow-sm" alt="${team.flag} flag" title="${team.countryName || team.flag}">
         <span class="text-white font-bold tracking-wide">${team.name}</span>
         </div>
         </td>
@@ -164,17 +166,23 @@ function renderPlayersLeaderboard() {
     let rankIndex = 1;
 
     allPlayers.forEach(player => {
+        // Handle flag formatting
+        const flagCode = player.flag ? player.flag.toLowerCase() : 'un';
+
         tbody.innerHTML += `
-        <tr class="rtr-table-row">
+        <tr class="rtr-table-row hover:bg-slate-900/40 transition">
         <td class="px-6 py-4 font-bold text-slate-400 font-mono">${rankIndex++}</td>
         <td class="px-6 py-4 text-center text-xs">${getTrendTemplate(player.movement)}</td>
-        <td class="px-6 py-4 font-bold text-white tracking-wide">${player.name}</td>
         <td class="px-6 py-4">
-        <div class="flex items-center space-x-2 text-xs text-slate-300 font-semibold">
-        <span>${player.flag}</span>
-        <span class="text-slate-400 font-mono text-[11px] uppercase tracking-wider">${player.countryCode}</span>
+        <div class="flex items-center space-x-2.5">
+        <img src="https://flagcdn.com/${flagCode}.svg" width="20" class="rounded-[2px] shadow-sm" alt="${player.flag} flag">
+        <span class="font-bold text-white tracking-wide">${player.name}</span>
         </div>
         </td>
+        <td class="px-6 py-4">
+        <span class="text-slate-400 font-mono text-[11px] uppercase tracking-wider bg-slate-800 px-1.5 py-0.5 rounded">${player.flag}</span>
+        </td>
+        <td class="px-6 py-4 text-slate-400 text-xs font-semibold">${player.role}</td>
         <td class="px-6 py-4 text-slate-400 text-xs font-semibold">${player.team}</td>
         <td class="px-6 py-4 font-mono font-black text-indigo-400">${player.rating}</td>
         </tr>
