@@ -166,7 +166,7 @@ function renderPlayersLeaderboard() {
     let rankIndex = 1;
 
     allPlayers.forEach(player => {
-        // Handle flag formatting
+        // Flag code for URL
         const flagCode = player.flag ? player.flag.toLowerCase() : 'un';
 
         tbody.innerHTML += `
@@ -178,9 +178,6 @@ function renderPlayersLeaderboard() {
         <img src="https://flagcdn.com/${flagCode}.svg" width="20" class="rounded-[2px] shadow-sm" alt="${player.flag} flag">
         <span class="font-bold text-white tracking-wide">${player.name}</span>
         </div>
-        </td>
-        <td class="px-6 py-4">
-        <span class="text-slate-400 font-mono text-[11px] uppercase tracking-wider bg-slate-800 px-1.5 py-0.5 rounded">${player.flag}</span>
         </td>
         <td class="px-6 py-4 text-slate-400 text-xs font-semibold">${player.role}</td>
         <td class="px-6 py-4 text-slate-400 text-xs font-semibold">${player.team}</td>
