@@ -43,9 +43,21 @@ function switchTab(tabId) {
 // Global Core Asynchronous Data Fetch Handler Orchestrator
 async function loadApplicationDataStructure() {
     try {
-        // Fallback local static objects run securely if server fetches fail or compile inside standalone workspace environments
-        const responseTeams = await fetch('data/teams.json').then(res => res.json()).catch(() => getLocalTeamsMockFallback());
-        const responsePlayers = await fetch('data/players.json').then(res => res.json()).catch(() => getLocalPlayersMockFallback());
+        // 1. Fetch data safely (Note the relative path without a leading slash for GitHub Pages)
+        let responseTeams = await fetch('data/teams.json').then(res => res.json()).catch(() => null);
+        let responsePlayers = await fetch('data/players.json').then(res => res.json()).catch(() => null);
+
+        // 2. Defensive Check: If the JSON is wrapped in an object structure like { "teams": [...] }
+        if (responseTeams && !Array.isArray(responseTeams) && responseTeams.teams) {
+            responseTeams = responseTeams.teams;
+        }
+        if (responsePlayers && !Array.isArray(responsePlayers) && responsePlayers.players) {
+            responsePlayers = responsePlayers.players;
+        }
+
+        // 3. Absolute Insurance: If fetch failed or structure is wrong, use local fallbacks
+        if (!Array.isArray(responseTeams)) responseTeams = getLocalTeamsMockFallback();
+        if (!Array.isArray(responsePlayers)) responsePlayers = getLocalPlayersMockFallback();
 
         // Process data sorting by absolute algorithmic rating values descending
         allTeams = responseTeams.sort((a, b) => b.rating - a.rating);
@@ -112,10 +124,8 @@ function renderTeamsLeaderboard() {
     let analyticalRankCount = 1;
 
     allTeams.forEach(team => {
-        // Enforce Regional Filter Boundaries
         if (currentRegionFilter !== 'ALL' && team.region !== currentRegionFilter) return;
 
-        // Map Active Status Dot Utility Designs
         let statusMarkerStyle = 'bg-rose-500';
         if (team.status === 'active') statusMarkerStyle = 'bg-emerald-500 animate-pulse';
         else if (team.status === 'inactive') statusMarkerStyle = 'bg-amber-500';
@@ -174,7 +184,6 @@ function renderPlayersLeaderboard() {
 
 // Construct Static UI Text Panels For Home and Infrastructure Nodes
 function initializeStaticPlatformLayout() {
-    // Load Dashboard Ecosystem News Block Items
     const newsBox = document.getElementById('home-news-container');
     if (newsBox) {
         const structuralNewsFeed = [
@@ -190,7 +199,6 @@ function initializeStaticPlatformLayout() {
         `).join('');
     }
 
-    // Load Dashboard Tournament Elements Info
     const eventBox = document.getElementById('home-events-container');
     if (eventBox) {
         const eventsMockData = [
@@ -211,7 +219,6 @@ function initializeStaticPlatformLayout() {
         `).join('');
     }
 
-    // Load Infrastructure Sub-Grid Elements Lists
     const mappingStreamers = ['RTR_Casts', 'EsportsObserver_EU'];
     document.getElementById('community-streamers').innerHTML = mappingStreamers.map(s => `<li><a href="#" class="hover:text-indigo-400 flex items-center justify-between py-1 border-b border-slate-900"><span><i class="fab fa-twitch text-purple-500 mr-2 opacity-80"></i>${s}</span> <i class="fa-solid fa-arrow-up-right-from-square text-[9px] text-slate-600"></i></a></li>`).join('');
 
@@ -225,7 +232,7 @@ function initializeStaticPlatformLayout() {
     document.getElementById('community-contributors').innerHTML = mappingContributors.map(c => `<li class="py-1 border-b border-slate-900 text-slate-300 flex items-center gap-2"><span><i class="fa-solid fa-user-gear text-emerald-400 text-[10px] opacity-80"></i>${c}</span></li>`).join('');
 }
 
-// Local Fallback Array Modules to guarantee functionality out of the box
+// Local Fallback Array Modules
 function getLocalTeamsMockFallback() {
     return [
         { "name": "Baltic Wolves", "flag": "🇱🇹", "countryName": "Lithuania", "region": "EEU", "rating": 1842, "wins": 24, "losses": 6, "winRate": "80%", "movement": "+3", "status": "active", "lastActive": "2 days ago" },
