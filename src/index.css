@@ -1,3 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base reset and RTR specific styles */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  background-color: #0b0f19;
+  color: #cbd5e1;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
 /* Custom Utility Variable and CSS Core Layer Extensions */
 
 .animate-fade-in {
