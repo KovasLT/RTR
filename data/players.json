@@ -4,7 +4,13 @@
     "flag": "EU",
     "role": "Clash",
     "team": "TeamA",
-    "rating": 1200,
-    "movement": "-"
+    "rating": 1200
+  },
+  {
+    "name": "Player2",
+    "flag": "LT",
+    "role": "Clash",
+    "team": "TeamB",
+    "rating": 1200
   }
 ]

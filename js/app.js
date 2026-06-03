@@ -98,22 +98,6 @@ function setRegionFilter(selectedRegion) {
     renderTeamsLeaderboard();
 }
 
-// Compute Trend Signatures for Display Tables
-function getTrendTemplate(movementStr) {
-    if (!movementStr || movementStr === '0' || movementStr.toLowerCase() === 'neutral') {
-        return `<span class="trend-neutral">▬</span>`;
-    }
-    if (movementStr.startsWith('+') || movementStr.startsWith('↑')) {
-        const val = movementStr.replace(/[+↑]/g, '');
-        return `<span class="trend-up"><i class="fa-solid fa-caret-up mr-1"></i>${val}</span>`;
-    }
-    if (movementStr.startsWith('-') || movementStr.startsWith('↓')) {
-        const val = movementStr.replace(/[-↓]/g, '');
-        return `<span class="trend-down"><i class="fa-solid fa-caret-down mr-1"></i>${val}</span>`;
-    }
-    return `<span class="trend-neutral">${movementStr}</span>`;
-}
-
 // Render Complete Team Database Content Grid
 function renderTeamsLeaderboard() {
     const tbody = document.getElementById('teams-table-body');
@@ -135,7 +119,6 @@ function renderTeamsLeaderboard() {
         tbody.innerHTML += `
         <tr class="rtr-table-row hover:bg-slate-900/40 transition">
         <td class="px-6 py-4 font-bold text-slate-400 font-mono">${analyticalRankCount++}</td>
-        <td class="px-6 py-4 text-center text-xs">${getTrendTemplate(team.movement)}</td>
         <td class="px-6 py-4">
         <div class="flex items-center space-x-2.5">
         <img src="https://flagcdn.com/${flagCode}.svg" width="20" class="rounded-[2px] shadow-sm" alt="${team.flag} flag" title="${team.countryName || team.flag}">
@@ -172,7 +155,6 @@ function renderPlayersLeaderboard() {
         tbody.innerHTML += `
         <tr class="rtr-table-row hover:bg-slate-900/40 transition">
         <td class="px-6 py-4 font-bold text-slate-400 font-mono">${rankIndex++}</td>
-        <td class="px-6 py-4 text-center text-xs">${getTrendTemplate(player.movement)}</td>
         <td class="px-6 py-4">
         <div class="flex items-center space-x-2.5">
         <img src="https://flagcdn.com/${flagCode}.svg" width="20" class="rounded-[2px] shadow-sm" alt="${player.flag} flag">
@@ -235,21 +217,4 @@ function initializeStaticPlatformLayout() {
 
     const mappingContributors = ['Admin Zero (Database)', 'Mantas P. (Analyst)'];
     document.getElementById('community-contributors').innerHTML = mappingContributors.map(c => `<li class="py-1 border-b border-slate-900 text-slate-300 flex items-center gap-2"><span><i class="fa-solid fa-user-gear text-emerald-400 text-[10px] opacity-80"></i>${c}</span></li>`).join('');
-}
-
-// Local Fallback Array Modules
-function getLocalTeamsMockFallback() {
-    return [
-        { "name": "Baltic Wolves", "flag": "🇱🇹", "countryName": "Lithuania", "region": "EEU", "rating": 1842, "wins": 24, "losses": 6, "winRate": "80%", "movement": "+3", "status": "active", "lastActive": "2 days ago" },
-        { "name": "Desert Falcons", "flag": "🇸🇦", "countryName": "Saudi Arabia", "region": "MENA", "rating": 1794, "wins": 20, "losses": 8, "winRate": "71%", "movement": "-1", "status": "active", "lastActive": "1 day ago" },
-        { "name": "Vindex EU", "flag": "🇪🇺", "countryName": "Europe", "region": "WEU", "rating": 1710, "wins": 18, "losses": 11, "winRate": "62%", "movement": "0", "status": "active", "lastActive": "3 hours ago" }
-    ];
-}
-
-function getLocalPlayersMockFallback() {
-    return [
-        { "name": "Medeina", "flag": "🇱🇹", "countryCode": "LT", "team": "Baltic Wolves", "rating": 1932, "movement": "+5" },
-        { "name": "Jan", "flag": "🇵🇱", "countryCode": "PL", "team": "Eastern Legion", "rating": 1898, "movement": "+2" },
-        { "name": "Kovas", "flag": "🇱🇹", "countryCode": "LT", "team": "Vindex EU", "rating": 1812, "movement": "-3" }
-    ];
 }

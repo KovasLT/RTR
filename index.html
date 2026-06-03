@@ -27,9 +27,9 @@
             <!-- Navigation Tabs -->
             <nav class="hidden md:flex h-full">
                 <button id="nav-home" onclick="switchTab('home')" class="nav-btn h-full px-5 flex items-center text-sm font-semibold border-b-2 text-indigo-400 border-indigo-500 transition-colors">Home</button>
-                <button id="nav-teams" onclick="switchTab('teams')" class="nav-btn h-full px-5 flex items-center text-sm font-semibold border-b-2 text-slate-400 border-transparent hover:text-slate-200 transition-colors">Team Ranking</button>
+                <button id="nav-teams" onclick="switchTab('teams')" class="nav-btn h-full px-5 flex items-center text-sm font-semibold border-b-2 text-slate-400 border-transparent hover:text-slate-200 transition-colors">Teams Ranking</button>
                 <button id="nav-players" onclick="switchTab('players')" class="nav-btn h-full px-5 flex items-center text-sm font-semibold border-b-2 text-slate-400 border-transparent hover:text-slate-200 transition-colors">Players Ranking</button>
-                <button id="nav-community" onclick="switchTab('community')" class="nav-btn h-full px-5 flex items-center text-sm font-semibold border-b-2 text-slate-400 border-transparent hover:text-slate-200 transition-colors">Community</button>
+                <button id="nav-community" onclick="switchTab('community')" class="nav-btn h-full px-5 flex items-center text-sm font-semibold border-b-2 text-slate-400 border-transparent hover:text-slate-200 transition-colors">Information</button>
             </nav>
 
             <a href="#" class="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold py-2 px-4 rounded-lg transition shadow-lg shadow-indigo-500/20">
@@ -45,9 +45,9 @@
         <div id="view-home" class="page-view block">
             <div class="bg-[#13192b] border border-slate-800/60 rounded-2xl p-10 text-center mb-8 shadow-xl">
                 <h2 class="text-4xl font-black text-white mb-3 uppercase tracking-tight">Rising Teams <span class="text-indigo-400">Rating</span></h2>
-                <p class="text-slate-400 text-lg">Tracking community teams and players across competitive esports ecosystems.</p>
+                <p class="text-slate-400 text-lg">Tracking community teams and players across competitive esports.</p>
                 <div class="mt-6 flex justify-center gap-6 text-[11px] font-mono text-slate-500 font-bold tracking-widest uppercase">
-                    <span>Transparent Rankings</span> • <span>Public Data</span> • <span>Grassroots Competition</span>
+                    <span>Transparent Rankings</span> • <span>Public Data</span> • <span>Community Information</span>
                 </div>
             </div>
 
@@ -73,7 +73,7 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-[#13192b] border border-slate-800 rounded-xl p-6">
-                    <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 border-b border-slate-800 pb-2"><i class="fa-regular fa-newspaper mr-2 text-indigo-400"></i>Ecosystem News</h3>
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 border-b border-slate-800 pb-2"><i class="fa-regular fa-newspaper mr-2 text-indigo-400"></i>Updates</h3>
                     <div id="home-news-container" class="space-y-4"></div>
                 </div>
                 <div class="bg-[#13192b] border border-slate-800 rounded-xl p-6">
@@ -97,7 +97,6 @@
                         <thead>
                             <tr class="bg-slate-900/50 border-b border-slate-800 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
                                 <th class="px-6 py-4">Rank</th>
-                                <th class="px-6 py-4 text-center">Trend</th>
                                 <th class="px-6 py-4">Team</th>
                                 <th class="px-6 py-4">Region</th>
                                 <th class="px-6 py-4">Rating</th>
@@ -123,7 +122,6 @@
                         <thead>
                             <tr class="bg-slate-900/50 border-b border-slate-800 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
                                 <th class="px-6 py-4">Rank</th>
-                                <th class="px-6 py-4 text-center">Trend</th>
                                 <th class="px-6 py-4">Player</th>
                                 <th class="px-6 py-4">Role</th>
                                 <th class="px-6 py-4">Current Team</th>
@@ -140,18 +138,18 @@
 
         <!-- VIEW: COMMUNITY -->
         <div id="view-community" class="page-view hidden">
-            <h2 class="text-2xl font-black text-white uppercase tracking-tight mb-6">Ecosystem Infrastructure</h2>
+            <h2 class="text-2xl font-black text-white uppercase tracking-tight mb-6">Usefull Information</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-[#13192b] border border-slate-800 rounded-xl p-6">
-                    <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">Verified Discords</h3>
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">Discords Servers</h3>
                     <ul id="community-discords" class="text-sm text-slate-400 space-y-1"></ul>
                 </div>
                 <div class="bg-[#13192b] border border-slate-800 rounded-xl p-6">
-                    <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">Tournament Organizers</h3>
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">Community Events</h3>
                     <ul id="community-organizers" class="text-sm text-slate-400 space-y-1"></ul>
                 </div>
                 <div class="bg-[#13192b] border border-slate-800 rounded-xl p-6">
-                    <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">Official Streamers</h3>
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">Popular Streamers</h3>
                     <ul id="community-streamers" class="text-sm text-slate-400 space-y-1"></ul>
                 </div>
                 <div class="bg-[#13192b] border border-slate-800 rounded-xl p-6">
@@ -164,7 +162,7 @@
     </main>
 
     <footer class="border-t border-slate-800/80 bg-[#0f1423] py-6 text-center">
-        <p class="text-xs text-slate-500">&copy; 2026 Rising Teams Rating (RTR). Architectural Open-Source Grassroots System.</p>
+        <p class="text-xs text-slate-500">&copy; 2026 Rising Teams Rating (RTR). Open-Source Ranking System.</p>
     </footer>
 
     <!-- Core App Logic -->
