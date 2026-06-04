@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { APP_CONSTANTS } from '../app-constants';
+import { useAuth } from '../hooks/useAuth.jsx';
 
 /**
  * Header Component
@@ -12,6 +13,7 @@ import { APP_CONSTANTS } from '../app-constants';
  */
 const Header = () => {
   const location = useLocation();
+  const { user, isAuthenticated, logout } = useAuth();
 
   /**
    * Determines if a given route path is currently active
@@ -38,9 +40,9 @@ const Header = () => {
   const getNavClass = (path) => {
     const baseClasses = "nav-btn h-full px-5 flex items-center text-sm font-semibold border-b-2 transition-colors";
 
-    // Active route styling: indigo color with bottom border
+    // Active route styling: grey color with bottom border
     if (isActiveRoute(path)) {
-      return `${baseClasses} text-indigo-400 border-indigo-500`;
+      return `${baseClasses} text-gray-300 border-gray-400`;
     }
 
     // Inactive route styling: gray with hover effects
@@ -51,7 +53,7 @@ const Header = () => {
     // ========================================
     // MAIN HEADER CONTAINER
     // ========================================
-    <header className="bg-[#0f1423] border-b border-slate-800/80 sticky top-0 z-50">
+    <header className="bg-[#111111] border-b border-gray-800/80 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
 
         {/* ========================================
@@ -59,7 +61,7 @@ const Header = () => {
             ======================================== */}
         <div className="flex items-center gap-3">
           {/* RTR Logo Badge */}
-          <div className="bg-indigo-600 text-white font-black px-2 py-1 rounded tracking-widest text-xl">
+          <div className="bg-gray-700 text-white font-black px-2 py-1 rounded tracking-widest text-xl">
             {APP_CONSTANTS.BRAND.NAME}
           </div>
 
@@ -100,15 +102,38 @@ const Header = () => {
         </nav>
 
         {/* ========================================
-            DISCORD CTA BUTTON (Right)
+            AUTHENTICATION CONTROLS (Right)
             ======================================== */}
-        <a
-          href="#"
-          className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold py-2 px-4 rounded-lg transition shadow-lg shadow-indigo-500/20"
-        >
-          <i className={`${APP_CONSTANTS.ICONS.DISCORD} mr-2`}></i>
-          {APP_CONSTANTS.NAV.JOIN_DISCORD}
-        </a>
+        <div className="flex items-center gap-3">
+          {isAuthenticated ? (
+            // Authenticated User Menu
+            <>
+              <Link
+                to="/profile"
+                className="text-gray-300 hover:text-white text-sm font-medium transition-colors flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-lg"
+              >
+                <i className="fas fa-user"></i>
+                {user?.username}
+              </Link>
+              <button
+                onClick={logout}
+                className="bg-gray-700 hover:bg-gray-600 text-white text-sm font-bold py-2 px-4 rounded-lg transition shadow-lg shadow-gray-700/20 flex items-center gap-2"
+              >
+                <i className="fas fa-sign-out-alt"></i>
+                {APP_CONSTANTS.NAV.LOGOUT}
+              </button>
+            </>
+          ) : (
+            // Discord-only sign in
+            <Link
+              to="/login"
+              className="bg-[#5865f2] hover:bg-[#4752c4] text-white text-sm font-bold py-2 px-4 rounded-lg transition shadow-lg shadow-[#5865f2]/20 flex items-center gap-2"
+            >
+              <i className="fab fa-discord"></i>
+              {APP_CONSTANTS.AUTH.SIGN_IN}
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );

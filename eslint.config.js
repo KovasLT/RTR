@@ -18,4 +18,11 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  {
+    // Node-side files: the auth backend and build/config files
+    files: ['server/**/*.js', '**/*.config.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 ])

@@ -13,7 +13,7 @@ const Footer = () => {
     // ========================================
     // APPLICATION FOOTER
     // ========================================
-    <footer className="border-t border-slate-800/80 bg-[#0f1423] py-6 text-center">
+    <footer className="border-t border-gray-800/80 bg-[#111111] py-6 text-center">
       {/* Copyright and Legal Information */}
       <p className="text-xs text-slate-500">{APP_CONSTANTS.FOOTER.COPYRIGHT}</p>
     </footer>

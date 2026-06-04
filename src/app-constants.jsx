@@ -33,6 +33,42 @@ export const APP_CONSTANTS = {
     PLAYERS_RANKING: 'Players Ranking', // Players ranking page link
     INFORMATION: 'Information', // Community information page link
     JOIN_DISCORD: 'Join Discord', // Discord CTA button
+    LOGIN: 'Login', // Login page link
+    REGISTER: 'Register', // Register page link
+    LOGOUT: 'Logout', // Logout button
+    PROFILE: 'Profile', // User profile link
+  },
+
+  // ========================================
+  // AUTHENTICATION
+  // ========================================
+  /** Authentication page text and labels */
+  AUTH: {
+    // Login Page (Discord is the only sign-in method)
+    LOGIN_TITLE: 'Welcome to RTR',
+    LOGIN_SUBTITLE: 'Sign in with Discord to continue',
+    LOGIN_FOOTNOTE: 'We only use Discord to identify you. No password required.',
+
+    // Discord OAuth
+    DISCORD_LOGIN: 'Continue with Discord',
+    CONNECTING_DISCORD: 'Connecting to Discord...',
+    SIGN_IN: 'Sign In',
+
+    // Callback / processing screen
+    CALLBACK_TITLE: 'Connecting to Discord',
+    CALLBACK_SUBTITLE: 'Processing your Discord authentication...',
+
+    // Error messages keyed by the ?error= query param on /login
+    ERRORS: {
+      discord_denied: 'Discord access was denied. Please try again.',
+      discord_invalid: 'No authorization code was received from Discord.',
+      discord_failed: 'Discord authentication failed. Please try again.',
+      default: 'Something went wrong during sign in. Please try again.',
+    },
+
+    // User Greeting
+    WELCOME: 'Welcome,',
+    LOGGED_IN_AS: 'Logged in as',
   },
 
   // ========================================

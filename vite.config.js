@@ -4,6 +4,14 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    // Pin the dev port so it matches the Discord redirect URI
+    port: 5173,
+    // Proxy API calls to the auth backend (avoids CORS in dev)
+    proxy: {
+      '/api': 'http://localhost:3001',
+    },
+  },
   build: {
     // Enable code splitting with simpler configuration
     rollupOptions: {
