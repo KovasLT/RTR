@@ -29,6 +29,7 @@ export const APP_CONSTANTS = {
   /** Navigation menu labels and buttons */
   NAV: {
     HOME: 'Home', // Dashboard/landing page link
+    DIRECTORY: 'Directory', // Talent directory link
     TEAMS_RANKING: 'Teams Ranking', // Teams leaderboard page link
     PLAYERS_RANKING: 'Players Ranking', // Players ranking page link
     INFORMATION: 'Information', // Community information page link
@@ -37,6 +38,8 @@ export const APP_CONSTANTS = {
     REGISTER: 'Register', // Register page link
     LOGOUT: 'Logout', // Logout button
     PROFILE: 'Profile', // User profile link
+    DASHBOARD: 'Dashboard', // Role dashboard link
+    ADMIN: 'Admin', // Admin dashboard link (admins only)
   },
 
   // ========================================
@@ -69,6 +72,160 @@ export const APP_CONSTANTS = {
     // User Greeting
     WELCOME: 'Welcome,',
     LOGGED_IN_AS: 'Logged in as',
+  },
+
+  // ========================================
+  // ROLES (Honor of Kings platform)
+  // ========================================
+  /** Human labels for the role enum values */
+  ROLES: {
+    player: 'Player',
+    coach: 'Coach',
+    scout: 'Scout',
+    tournament_manager: 'Tournament Manager',
+    team_manager: 'Team Manager',
+  },
+
+  // ========================================
+  // ONBOARDING / PROFILE EDIT
+  // ========================================
+  ONBOARDING: {
+    TITLE: 'Set up your profile',
+    SUBTITLE: 'Tell the community who you are and what you do.',
+    EDIT_TITLE: 'Edit your profile',
+    EDIT_SUBTITLE: 'Update your details and roles.',
+    DISPLAY_NAME_LABEL: 'Display name',
+    BIO_LABEL: 'Bio',
+    BIO_PLACEHOLDER: 'A short intro — your experience, goals, what you’re looking for…',
+    REGION_LABEL: 'Region',
+    COUNTRY_LABEL: 'Country (ISO code, e.g. US, SA)',
+    ROLES_LABEL: 'Your roles',
+    ROLES_HINT: 'Pick everything that applies — you can hold more than one.',
+    PLAYER_SECTION: 'Player details',
+    LANE_LABEL: 'Main lane',
+    RANK_LABEL: 'Rank',
+    SERVER_LABEL: 'In-game name / server',
+    LFT_LABEL: 'Looking for a team',
+    COACH_SECTION: 'Coach details',
+    SPECIALTIES_LABEL: 'Specialties',
+    EXPERIENCE_LABEL: 'Years of experience',
+    SCOUT_SECTION: 'Scout / Organisation details',
+    ORG_LABEL: 'Organisation',
+    SAVE: 'Save profile',
+    SAVING: 'Saving…',
+    SELECT_PLACEHOLDER: 'Select…',
+  },
+
+  // ========================================
+  // DIRECTORY
+  // ========================================
+  DIRECTORY: {
+    TITLE: 'Talent Directory',
+    SUBTITLE: 'Discover players, coaches, scouts and managers.',
+    SEARCH_PLACEHOLDER: 'Search by name…',
+    FILTER_ROLE: 'Role',
+    FILTER_LANE: 'Lane',
+    FILTER_RANK: 'Rank',
+    FILTER_REGION: 'Region',
+    ALL: 'All',
+    EMPTY: 'No one matches these filters yet.',
+    LFT_BADGE: 'Looking for team',
+  },
+
+  // ========================================
+  // ROLE DASHBOARDS
+  // ========================================
+  DASHBOARD: {
+    TITLE: 'Dashboard',
+    SUBTITLE: 'Your role tools and activity.',
+    NO_ROLES_TITLE: 'No roles yet',
+    NO_ROLES_BODY: 'Add a role to your profile to unlock its dashboard.',
+    SET_UP_PROFILE: 'Set up profile',
+    VIEW_AS: 'View as',
+    VIEWING_AS_ADMIN: 'Previewing as admin',
+    EDIT_PROFILE: 'Edit profile',
+    COMING_SOON: 'Coming soon',
+    RATING: 'Rating',
+    // Per-role panel copy
+    PLAYER_TITLE: 'Player',
+    PLAYER_LFT_ON: 'You are visible to scouts as looking for a team.',
+    PLAYER_LFT_OFF: 'You are not currently looking for a team.',
+    PLAYER_APPLICATIONS: 'Team applications',
+    PLAYER_APPLICATIONS_SOON: 'Apply to teams and track responses here (Phase 2).',
+    COACH_TITLE: 'Coach',
+    COACH_BODY: 'Manage coaching availability and connect with teams/players.',
+    COACH_SOON: 'Coaching requests and rosters arrive in Phase 2.',
+    SCOUT_TITLE: 'Scout',
+    SCOUT_BODY: 'Track players you are watching and express interest.',
+    SCOUT_SOON: 'Watchlists and scout-interest tools arrive in Phase 2.',
+    TEAM_MANAGER_TITLE: 'Team Manager',
+    TEAM_MANAGER_BODY: 'Create and manage your team and roster.',
+    TEAM_MANAGER_SOON: 'Team creation, rosters and applications arrive in Phase 2.',
+    TOURNAMENT_MANAGER_TITLE: 'Tournament Manager',
+    TOURNAMENT_MANAGER_BODY: 'Host tournaments, register teams and run brackets.',
+    TOURNAMENT_MANAGER_SOON: 'Tournament hosting and brackets arrive in Phase 3.',
+  },
+
+  // ========================================
+  // ADMIN DASHBOARD
+  // ========================================
+  ADMIN: {
+    TITLE: 'Admin Dashboard',
+    SUBTITLE: 'Manage the RTR platform.',
+    NOT_AUTHORIZED: 'You do not have access to this area.',
+    TAB_OVERVIEW: 'Overview',
+    TAB_USERS: 'Users & Roles',
+    TAB_RATINGS: 'Ratings',
+    TAB_REFERENCE: 'Reference Data',
+    // Overview
+    STAT_USERS: 'Users',
+    STAT_PLAYERS: 'Players',
+    STAT_ADMINS: 'Admins',
+    STAT_RATINGS: 'Ratings tracked',
+    // Users
+    USERS_SEARCH: 'Search users…',
+    COL_USER: 'User',
+    COL_ROLES: 'Roles',
+    COL_ADMIN: 'Admin',
+    MAKE_ADMIN: 'Make admin',
+    REVOKE_ADMIN: 'Revoke admin',
+    REMOVE_ROLE: 'Remove',
+    // Ratings
+    RATINGS_PICK_USER: 'Search a user…',
+    RATINGS_SUBJECT: 'Subject (role)',
+    RATINGS_DELTA: 'Adjustment (+/-)',
+    RATINGS_NOTE: 'Reason / note',
+    RATINGS_APPLY: 'Apply adjustment',
+    RATINGS_LEDGER: 'Recent rating events',
+    RATINGS_EMPTY_LEDGER: 'No rating events yet.',
+    // Reference data
+    REF_LANES: 'Lanes',
+    REF_RANKS: 'Ranks',
+    REF_REGIONS: 'Regions',
+    REF_HEROES: 'Heroes',
+    REF_ADD: 'Add',
+    REF_NAME_PLACEHOLDER: 'Name',
+    REF_CODE_PLACEHOLDER: 'Code',
+    REF_DELETE: 'Delete',
+    SAVING: 'Saving…',
+    ERROR: 'Something went wrong.',
+  },
+
+  // ========================================
+  // PROFILE VIEW
+  // ========================================
+  PROFILE_PAGE: {
+    NOT_FOUND: 'Profile not found.',
+    EDIT: 'Edit Profile',
+    SIGN_OUT: 'Sign Out',
+    RATINGS: 'Ratings',
+    ROLES: 'Roles',
+    NO_ROLES: 'No roles set yet.',
+    DISCORD_NOTE: 'Account managed via Discord.',
+    MEMBER_SINCE: 'Member since',
+    LANE: 'Lane',
+    RANK: 'Rank',
+    SERVER: 'In-game name',
   },
 
   // ========================================

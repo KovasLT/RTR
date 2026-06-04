@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { isSupabaseConfigured } from '../lib/supabase.js';
 import { APP_CONSTANTS } from '../app-constants';
 
 /**
@@ -14,6 +16,21 @@ import { APP_CONSTANTS } from '../app-constants';
 const Login = () => {
   const [searchParams] = useSearchParams();
   const { loginWithDiscord, isLoading, error } = useAuth();
+
+  // Local "redirecting to Discord" state so the button shows a loader the
+  // instant it's clicked, before the browser navigates away to Discord.
+  const [redirecting, setRedirecting] = useState(false);
+
+  const handleDiscordLogin = () => {
+    // Only show the loader if we'll actually redirect; otherwise an error
+    // (e.g. missing config) is surfaced and the button stays interactive.
+    if (isSupabaseConfigured()) {
+      setRedirecting(true);
+    }
+    loginWithDiscord();
+  };
+
+  const busy = isLoading || redirecting;
 
   // Map a callback ?error= code to a friendly message (falls back to the
   // context error or a generic message).
@@ -52,11 +69,11 @@ const Login = () => {
           {/* Discord Login Button */}
           <button
             type="button"
-            onClick={loginWithDiscord}
-            disabled={isLoading}
+            onClick={handleDiscordLogin}
+            disabled={busy}
             className="w-full bg-[#5865f2] hover:bg-[#4752c4] text-white font-bold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg shadow-[#5865f2]/20 hover:shadow-[#5865f2]/30 hover:transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-3"
           >
-            {isLoading ? (
+            {busy ? (
               <>
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                 <span>{APP_CONSTANTS.AUTH.CONNECTING_DISCORD}</span>

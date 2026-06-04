@@ -85,6 +85,11 @@ const Header = () => {
             {APP_CONSTANTS.NAV.HOME}
           </Link>
 
+          {/* Talent Directory Link */}
+          <Link to="/directory" className={getNavClass('/directory')}>
+            {APP_CONSTANTS.NAV.DIRECTORY}
+          </Link>
+
           {/* Teams Ranking Page Link */}
           <Link to="/teams" className={getNavClass('/teams')}>
             {APP_CONSTANTS.NAV.TEAMS_RANKING}
@@ -108,6 +113,22 @@ const Header = () => {
           {isAuthenticated ? (
             // Authenticated User Menu
             <>
+              <Link
+                to="/dashboard"
+                className="hidden sm:flex text-gray-300 hover:text-white text-sm font-medium transition-colors items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-lg"
+              >
+                <i className="fas fa-gauge-high"></i>
+                {APP_CONSTANTS.NAV.DASHBOARD}
+              </Link>
+              {user?.isAdmin && (
+                <Link
+                  to="/admin"
+                  className="hidden sm:flex text-amber-300 hover:text-amber-200 text-sm font-medium transition-colors items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-lg"
+                >
+                  <i className="fas fa-shield-halved"></i>
+                  {APP_CONSTANTS.NAV.ADMIN}
+                </Link>
+              )}
               <Link
                 to="/profile"
                 className="text-gray-300 hover:text-white text-sm font-medium transition-colors flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-lg"

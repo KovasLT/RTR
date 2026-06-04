@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './hooks/useAuth.jsx';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -11,36 +12,51 @@ const Teams = lazy(() => import('./pages/Teams'));
 const Players = lazy(() => import('./pages/Players'));
 const Community = lazy(() => import('./pages/Community'));
 const Login = lazy(() => import('./pages/Login'));
-const Profile = lazy(() => import('./pages/Profile'));
+const Directory = lazy(() => import('./pages/Directory'));
+const ProfileView = lazy(() => import('./pages/ProfileView'));
+const ProfileEdit = lazy(() => import('./pages/ProfileEdit'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const DiscordCallback = lazy(() => import('./pages/DiscordCallback'));
+
+const queryClient = new QueryClient();
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <div className="bg-[#0a0a0a] text-gray-300 font-sans min-h-screen flex flex-col w-full">
-          <Header />
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <Router>
+          <div className="bg-[#0a0a0a] text-gray-300 font-sans min-h-screen flex flex-col w-full">
+            <Header />
 
-          <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-            <Suspense fallback={<LoadingSpinner />}>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/teams" element={<Teams />} />
-                <Route path="/players" element={<Players />} />
-                <Route path="/community" element={<Community />} />
-                <Route path="/login" element={<Login />} />
-                {/* Discord is the only auth method; registration === login */}
-                <Route path="/register" element={<Navigate to="/login" replace />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/auth/discord/callback" element={<DiscordCallback />} />
-              </Routes>
-            </Suspense>
-          </main>
+            <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+              <Suspense fallback={<LoadingSpinner />}>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/teams" element={<Teams />} />
+                  <Route path="/players" element={<Players />} />
+                  <Route path="/community" element={<Community />} />
+                  <Route path="/directory" element={<Directory />} />
+                  <Route path="/login" element={<Login />} />
+                  {/* Discord is the only auth method; registration === login */}
+                  <Route path="/register" element={<Navigate to="/login" replace />} />
+                  {/* Onboarding + profile editing share one form */}
+                  <Route path="/onboarding" element={<ProfileEdit />} />
+                  <Route path="/profile/edit" element={<ProfileEdit />} />
+                  <Route path="/profile" element={<ProfileView />} />
+                  <Route path="/profile/:id" element={<ProfileView />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/admin" element={<AdminDashboard />} />
+                  <Route path="/auth/discord/callback" element={<DiscordCallback />} />
+                </Routes>
+              </Suspense>
+            </main>
 
-          <Footer />
-        </div>
-      </Router>
-    </AuthProvider>
+            <Footer />
+          </div>
+        </Router>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 

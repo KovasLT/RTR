@@ -1,168 +1,173 @@
-import { useState, createContext, useContext } from 'react';
 import {
-  getDiscordOAuthUrl,
-  isDiscordConfigured,
-  DISCORD_CONFIG,
-} from '../config/discord.js';
+  useState,
+  useEffect,
+  useCallback,
+  createContext,
+  useContext,
+} from 'react';
+import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 
 /**
- * Authentication Context
+ * Authentication Context (Supabase + Discord)
  *
- * RTR uses Discord OAuth as its only sign-in method. The secure token
- * exchange happens on the backend (see server/index.js); this context just
- * kicks off the OAuth redirect and forwards the returned code to the backend.
+ * Auth is handled by Supabase's Discord provider. This context keeps the same
+ * surface the app already used (`user`, `isAuthenticated`, `loginWithDiscord`,
+ * `logout`, ...) and adds `roles` / `needsOnboarding` for the new platform.
  */
 const AuthContext = createContext();
 
-const STORAGE_KEY = 'rtr_user';
-const STATE_KEY = 'discord_oauth_state';
-
 /**
- * Read the persisted user from localStorage (used as a lazy initial state).
- * @returns {Object|null} Stored user or null
+ * Shape the auth user + profile row into the `user` object the UI expects.
  */
-const readStoredUser = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : null;
-  } catch (err) {
-    console.error('Error loading auth state:', err);
-    localStorage.removeItem(STORAGE_KEY);
-    return null;
-  }
+const mapUser = (authUser, profile) => {
+  if (!authUser) return null;
+  const meta = authUser.user_metadata || {};
+  return {
+    id: authUser.id,
+    email: profile?.email ?? authUser.email ?? null,
+    username:
+      profile?.display_name ||
+      profile?.handle ||
+      meta.full_name ||
+      meta.name ||
+      meta.user_name ||
+      'Player',
+    handle: profile?.handle || meta.user_name || null,
+    avatar: profile?.avatar_url || meta.avatar_url || null,
+    discordId: profile?.discord_id || meta.provider_id || null,
+    bio: profile?.bio || null,
+    regionId: profile?.region_id || null,
+    isAdmin: profile?.is_admin || false,
+    provider: 'discord',
+    createdAt: profile?.created_at || authUser.created_at,
+  };
 };
 
-/**
- * Authentication Provider Component
- *
- * Provides authentication state and methods to the entire app and persists
- * the signed-in user in localStorage.
- *
- * @param {Object} props - Component props
- * @param {ReactNode} props.children - Child components
- * @returns {JSX.Element} Auth provider component
- */
 export const AuthProvider = ({ children }) => {
-  // Initialise synchronously from localStorage (no effect needed)
-  const [user, setUser] = useState(readStoredUser);
-  const [isLoading, setIsLoading] = useState(false);
+  const [authUser, setAuthUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [roles, setRoles] = useState([]);
+  // Start "loading" only when Supabase is configured (else there's nothing to load).
+  const [isLoading, setIsLoading] = useState(isSupabaseConfigured());
   const [error, setError] = useState(null);
 
-  /**
-   * Begin Discord OAuth.
-   * Generates a CSRF "state" token, stores it, and redirects to Discord.
-   */
-  const loginWithDiscord = () => {
-    setError(null);
+  // Load the profile row + claimed roles for a user id.
+  const loadProfile = useCallback(async (uid) => {
+    if (!supabase || !uid) {
+      setProfile(null);
+      setRoles([]);
+      return;
+    }
+    const [{ data: prof }, { data: roleRows }] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
+      supabase.from('user_roles').select('role').eq('user_id', uid),
+    ]);
+    setProfile(prof ?? null);
+    setRoles((roleRows ?? []).map((r) => r.role));
+  }, []);
 
-    if (!isDiscordConfigured()) {
-      setError('Discord login is not configured yet. Set VITE_DISCORD_CLIENT_ID in .env');
+  // Initialise session + subscribe to auth changes.
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
       return;
     }
 
-    // CSRF protection: round-trip a random token through Discord and verify
-    // it on return.
-    const state =
-      typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : String(Date.now()) + Math.random().toString(36).slice(2);
+    let active = true;
 
-    sessionStorage.setItem(STATE_KEY, state);
-    window.location.href = getDiscordOAuthUrl(state);
-  };
-
-  /**
-   * Handle the Discord OAuth callback.
-   * Verifies the CSRF state, then asks the backend to exchange the code and
-   * return the user profile.
-   *
-   * @param {string} code - Authorization code from Discord
-   * @param {string} returnedState - State value Discord echoed back
-   * @returns {Promise<boolean>} Success status
-   */
-  const handleDiscordCallback = async (code, returnedState) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const expectedState = sessionStorage.getItem(STATE_KEY);
-      sessionStorage.removeItem(STATE_KEY);
-
-      if (!expectedState || expectedState !== returnedState) {
-        throw new Error('Invalid authentication state. Please try signing in again.');
-      }
-
-      const response = await fetch(DISCORD_CONFIG.CALLBACK_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Discord authentication failed. Please try again.');
-      }
-
-      const { user: userData } = await response.json();
-
-      setUser(userData);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-      return true;
-    } catch (err) {
-      console.error('Discord callback error:', err);
-      setError(err.message);
-      return false;
-    } finally {
+    (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!active) return;
+      setAuthUser(session?.user ?? null);
+      if (session?.user) await loadProfile(session.user.id);
       setIsLoading(false);
+    })();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user ?? null);
+      if (session?.user) {
+        loadProfile(session.user.id);
+      } else {
+        setProfile(null);
+        setRoles([]);
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [loadProfile]);
+
+  /**
+   * Start Discord OAuth via Supabase. Redirects the browser.
+   */
+  const loginWithDiscord = useCallback(async () => {
+    setError(null);
+    if (!isSupabaseConfigured()) {
+      setError(
+        'Supabase is not configured yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env',
+      );
+      return;
     }
-  };
+    const { error: err } = await supabase.auth.signInWithOAuth({
+      provider: 'discord',
+      options: {
+        redirectTo: `${window.location.origin}/auth/discord/callback`,
+        scopes: 'identify email',
+      },
+    });
+    if (err) setError(err.message);
+  }, []);
 
   /**
-   * Logout: clears user state and persisted session.
+   * Sign out and clear local state.
    */
-  const logout = () => {
-    setUser(null);
+  const logout = useCallback(async () => {
     setError(null);
-    localStorage.removeItem(STORAGE_KEY);
-  };
+    if (supabase) await supabase.auth.signOut();
+    setAuthUser(null);
+    setProfile(null);
+    setRoles([]);
+  }, []);
 
-  /**
-   * Clear any auth errors.
-   */
-  const clearError = () => {
-    setError(null);
-  };
+  const clearError = useCallback(() => setError(null), []);
+
+  const refreshProfile = useCallback(() => {
+    if (authUser) return loadProfile(authUser.id);
+  }, [authUser, loadProfile]);
 
   const value = {
-    user,
+    user: mapUser(authUser, profile),
+    profile,
+    roles,
     isLoading,
     error,
-    isAuthenticated: !!user,
+    isAuthenticated: !!authUser,
+    // A signed-in user with no roles yet still needs to set up their profile.
+    needsOnboarding: !!authUser && roles.length === 0,
     loginWithDiscord,
-    handleDiscordCallback,
     logout,
     clearError,
+    refreshProfile,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 /**
- * Custom hook to use authentication context
- *
+ * Custom hook to use authentication context.
  * @returns {Object} Authentication state and methods
  * @throws {Error} If used outside AuthProvider
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
-
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-
   return context;
 };
