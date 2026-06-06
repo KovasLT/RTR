@@ -7,6 +7,7 @@ const NAV = APP_CONSTANTS.NAV;
 
 const NAV_LINKS = [
   { to: '/', label: NAV.HOME, exact: true },
+  { to: '/news', label: NAV.NEWS },
   { to: '/directory', label: NAV.DIRECTORY },
   { to: '/teams', label: NAV.TEAMS_RANKING },
   { to: '/players', label: NAV.PLAYERS_RANKING },

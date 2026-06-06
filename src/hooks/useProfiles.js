@@ -1,5 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
+
+const unwrap = (promise) =>
+  promise.then((r) => {
+    if (r.error) throw r.error;
+    return r.data;
+  });
 
 /**
  * Shared select for a profile + its roles and role-specific detail rows.
@@ -77,3 +83,44 @@ export const useProfile = (id) =>
       return { ...normalizeRoles(data), ratings: ratings ?? [] };
     },
   });
+
+/**
+ * Full rating history for a subject (oldest → newest), from the ledger.
+ */
+export const useRatingHistory = (subjectType, subjectId) =>
+  useQuery({
+    queryKey: ['rating_history', subjectType, subjectId],
+    enabled: Boolean(supabase) && Boolean(subjectType) && Boolean(subjectId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('rating_events')
+        .select('new_rating, delta, reason, created_at')
+        .eq('subject_type', subjectType)
+        .eq('subject_id', subjectId)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+/** Owner-only edits to the current user's player profile. */
+export const usePlayerMutations = () => {
+  const qc = useQueryClient();
+
+  const setLookingForTeam = useMutation({
+    mutationFn: ({ userId, value }) =>
+      unwrap(
+        supabase
+          .from('player_profiles')
+          .update({ looking_for_team: value, updated_at: new Date().toISOString() })
+          .eq('user_id', userId),
+      ),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['profile', vars.userId] });
+      qc.invalidateQueries({ queryKey: ['directory'] });
+      qc.invalidateQueries({ queryKey: ['rankings'] });
+    },
+  });
+
+  return { setLookingForTeam };
+};

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase } from '../lib/supabase.js';
-import { useRegions, useLanes, useRanks } from '../hooks/useReferenceData.js';
+import { useRegions, useLanes, useRanks, useHeroes } from '../hooks/useReferenceData.js';
 import { APP_CONSTANTS } from '../app-constants';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -23,6 +23,7 @@ const ProfileEdit = () => {
   const { data: regions = [] } = useRegions();
   const { data: lanes = [] } = useLanes();
   const { data: ranks = [] } = useRanks();
+  const { data: heroes = [] } = useHeroes();
 
   const isEditing = location.pathname === '/profile/edit';
 
@@ -35,6 +36,8 @@ const ProfileEdit = () => {
     laneId: '',
     rankId: '',
     server: '',
+    availability: '',
+    heroPool: [],
     lookingForTeam: false,
     specialties: '',
     experienceYears: '',
@@ -75,6 +78,8 @@ const ProfileEdit = () => {
         laneId: p?.lane_id ? String(p.lane_id) : f.laneId,
         rankId: p?.rank_id ? String(p.rank_id) : f.rankId,
         server: p?.server || f.server,
+        availability: p?.availability || f.availability,
+        heroPool: Array.isArray(p?.hero_pool) ? p.hero_pool : f.heroPool,
         lookingForTeam: p ? !!p.looking_for_team : f.lookingForTeam,
         specialties: c?.specialties || f.specialties,
         experienceYears: c?.experience_years ? String(c.experience_years) : f.experienceYears,
@@ -95,6 +100,11 @@ const ProfileEdit = () => {
     setForm((f) => ({
       ...f,
       roles: f.roles.includes(r) ? f.roles.filter((x) => x !== r) : [...f.roles, r],
+    }));
+  const toggleHero = (name) =>
+    setForm((f) => ({
+      ...f,
+      heroPool: f.heroPool.includes(name) ? f.heroPool.filter((x) => x !== name) : [...f.heroPool, name],
     }));
 
   const handleSubmit = async (e) => {
@@ -131,6 +141,8 @@ const ProfileEdit = () => {
           lane_id: form.laneId ? Number(form.laneId) : null,
           rank_id: form.rankId ? Number(form.rankId) : null,
           server: form.server || null,
+          availability: form.availability || null,
+          hero_pool: form.heroPool,
           looking_for_team: form.lookingForTeam,
           updated_at: now,
         });
@@ -265,10 +277,39 @@ const ProfileEdit = () => {
                 </select>
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">{C.SERVER_LABEL}</label>
-              <input className={inputClass} value={form.server} onChange={(e) => set('server', e.target.value)} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">{C.SERVER_LABEL}</label>
+                <input className={inputClass} value={form.server} onChange={(e) => set('server', e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">{C.AVAILABILITY_LABEL}</label>
+                <input className={inputClass} placeholder={C.AVAILABILITY_PLACEHOLDER} value={form.availability} onChange={(e) => set('availability', e.target.value)} />
+              </div>
             </div>
+            {heroes.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">{C.HERO_POOL_LABEL}</label>
+                <p className="text-xs text-gray-500 mb-2">{C.HERO_POOL_HINT}</p>
+                <div className="flex flex-wrap gap-2">
+                  {heroes.map((h) => {
+                    const on = form.heroPool.includes(h.name);
+                    return (
+                      <button
+                        type="button"
+                        key={h.id}
+                        onClick={() => toggleHero(h.name)}
+                        className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                          on ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-300 hover:border-gray-500'
+                        }`}
+                      >
+                        {h.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <label className="flex items-center gap-2 text-sm text-gray-300">
               <input type="checkbox" checked={form.lookingForTeam} onChange={(e) => set('lookingForTeam', e.target.checked)} />
               {C.LFT_LABEL}

@@ -1,5 +1,6 @@
 import { useData } from '../hooks/useData';
 import LoadingSpinner from '../components/LoadingSpinner';
+import NewsFeed from '../components/NewsFeed';
 import { APP_CONSTANTS } from '../app-constants';
 
 /**
@@ -21,7 +22,7 @@ const Home = () => {
   // ========================================
   // DATA FETCHING & STATE MANAGEMENT
   // ========================================
-  const { teams, players, news, events, stats, isLoading, error } = useData();
+  const { teams, players, events, stats, isLoading, error } = useData();
 
   // Handle loading and error states
   if (isLoading) return <LoadingSpinner />;
@@ -103,23 +104,8 @@ const Home = () => {
             {APP_CONSTANTS.HOME.SECTIONS.UPDATES}
           </h3>
 
-          {/* News Items List */}
-          <div className="space-y-4">
-            {news.map((newsItem, index) => (
-              <div key={index} className="border-l-2 border-indigo-500/80 pl-4 py-0.5">
-                {/* Publication Date */}
-                <p className="text-[10px] font-mono text-slate-500 uppercase font-bold tracking-wider">
-                  {newsItem.date}
-                </p>
-
-                {/* News Title */}
-                <h4 className="text-sm font-bold text-slate-200 mt-0.5">{newsItem.title}</h4>
-
-                {/* News Description */}
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed">{newsItem.description}</p>
-              </div>
-            ))}
-          </div>
+          {/* Approved community news from the database */}
+          <NewsFeed limit={5} compact showViewAll />
         </div>
 
         {/* ========================================

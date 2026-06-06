@@ -27,6 +27,7 @@ export const usePlayerRankings = () =>
         .from('profiles')
         .select(
           `id, display_name, handle, country_iso,
+           region:regions(code),
            roles:user_roles!inner(role),
            player:player_profiles(server, lane:lanes(name), rank:ranks(name)),
            memberships:team_members(team:teams(name))`,
@@ -42,6 +43,7 @@ export const usePlayerRankings = () =>
           id: p.id,
           name: p.display_name || p.handle || 'Unknown',
           country: p.country_iso || null,
+          regionCode: p.region?.code || null,
           lane: p.player?.lane?.name || null,
           rank: p.player?.rank?.name || null,
           team: p.memberships?.[0]?.team?.name || null,

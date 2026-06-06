@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider } from './hooks/useAuth.jsx';
+import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -11,6 +11,7 @@ const Home = lazy(() => import('./pages/Home'));
 const Teams = lazy(() => import('./pages/Teams'));
 const Players = lazy(() => import('./pages/Players'));
 const Community = lazy(() => import('./pages/Community'));
+const News = lazy(() => import('./pages/News'));
 const Login = lazy(() => import('./pages/Login'));
 const Directory = lazy(() => import('./pages/Directory'));
 const ProfileView = lazy(() => import('./pages/ProfileView'));
@@ -21,6 +22,13 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const DiscordCallback = lazy(() => import('./pages/DiscordCallback'));
 
 const queryClient = new QueryClient();
+
+/** Home route: the dashboard for signed-in users, the landing page otherwise. */
+function HomeRoute() {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return <LoadingSpinner />;
+  return isAuthenticated ? <Dashboard /> : <Home />;
+}
 
 function App() {
   return (
@@ -33,10 +41,11 @@ function App() {
             <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
               <Suspense fallback={<LoadingSpinner />}>
                 <Routes>
-                  <Route path="/" element={<Home />} />
+                  <Route path="/" element={<HomeRoute />} />
                   <Route path="/teams" element={<Teams />} />
                   <Route path="/players" element={<Players />} />
                   <Route path="/community" element={<Community />} />
+                  <Route path="/news" element={<News />} />
                   <Route path="/directory" element={<Directory />} />
                   <Route path="/login" element={<Login />} />
                   {/* Discord is the only auth method; registration === login */}

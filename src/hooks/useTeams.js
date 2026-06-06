@@ -85,6 +85,82 @@ export const useTeam = (id) =>
     },
   });
 
+/** Teams currently recruiting (for player recommendations). */
+export const useRecruitingTeams = () =>
+  useQuery({
+    queryKey: ['teams', 'recruiting'],
+    enabled: Boolean(supabase),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('teams')
+        .select('id, name, tag, recruitment_note, region:regions(id, code), members:team_members(user_id)')
+        .eq('status', 'recruiting');
+      if (error) throw error;
+      return (data ?? []).map((t) => ({
+        id: t.id,
+        name: t.name,
+        tag: t.tag,
+        note: t.recruitment_note,
+        regionId: t.region?.id ?? null,
+        regionCode: t.region?.code ?? null,
+        memberCount: (t.members ?? []).length,
+      }));
+    },
+  });
+
+/** Teams the given user is staff of, optionally filtered to one staff role. */
+export const useMyStaffTeams = (userId, role) =>
+  useQuery({
+    queryKey: ['teams', 'staff', userId, role ?? 'any'],
+    enabled: Boolean(supabase) && Boolean(userId),
+    queryFn: async () => {
+      let q = supabase
+        .from('team_staff')
+        .select('role, team:teams(id, name, tag, status, region:regions(code))')
+        .eq('user_id', userId);
+      if (role) q = q.eq('role', role);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? [])
+        .filter((r) => r.team)
+        .map((r) => ({
+          teamId: r.team.id,
+          name: r.team.name,
+          tag: r.team.tag,
+          status: r.team.status,
+          regionCode: r.team.region?.code ?? null,
+          staffRole: r.role,
+        }));
+    },
+  });
+
+/** Teams the given user is a roster member of (player side), with team rating. */
+export const useMyMemberships = (userId) =>
+  useQuery({
+    queryKey: ['teams', 'member', userId],
+    enabled: Boolean(supabase) && Boolean(userId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('team_members')
+        .select('team_id, is_captain, lane:lanes(name), team:teams(id, name, tag, status, region:regions(code))')
+        .eq('user_id', userId);
+      if (error) throw error;
+
+      const rows = (data ?? []).filter((r) => r.team);
+      const ratings = await ratingFor(rows.map((r) => r.team_id));
+      return rows.map((r) => ({
+        teamId: r.team_id,
+        name: r.team.name,
+        tag: r.team.tag,
+        status: r.team.status,
+        regionCode: r.team.region?.code || null,
+        lane: r.lane?.name || null,
+        isCaptain: r.is_captain,
+        rating: ratings.get(r.team_id) ?? null,
+      }));
+    },
+  });
+
 /** Applications + invites involving the given user (player side). */
 export const useMyApplications = (userId) =>
   useQuery({

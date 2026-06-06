@@ -29,6 +29,7 @@ export const APP_CONSTANTS = {
   /** Navigation menu labels and buttons */
   NAV: {
     HOME: 'Home', // Dashboard/landing page link
+    NEWS: 'News', // Community news / blog link
     DIRECTORY: 'Directory', // Talent directory link
     TEAMS_RANKING: 'Teams Ranking', // Teams leaderboard page link
     PLAYERS_RANKING: 'Players Ranking', // Players ranking page link
@@ -116,6 +117,10 @@ export const APP_CONSTANTS = {
     LANE_LABEL: 'Main lane',
     RANK_LABEL: 'Rank',
     SERVER_LABEL: 'In-game name / server',
+    AVAILABILITY_LABEL: 'Availability',
+    AVAILABILITY_PLACEHOLDER: 'e.g. Evenings CET, weekends',
+    HERO_POOL_LABEL: 'Hero pool',
+    HERO_POOL_HINT: 'Tap the heroes you play.',
     LFT_LABEL: 'Looking for a team',
     COACH_SECTION: 'Coach details',
     SPECIALTIES_LABEL: 'Specialties',
@@ -160,8 +165,45 @@ export const APP_CONSTANTS = {
     RATING: 'Rating',
     // Per-role panel copy
     PLAYER_TITLE: 'Player',
+    PLAYER_OVERVIEW: 'Overview',
     PLAYER_LFT_ON: 'You are visible to scouts as looking for a team.',
     PLAYER_LFT_OFF: 'You are not currently looking for a team.',
+    PLAYER_TEAMS_TITLE: 'My teams',
+    PLAYER_TEAMS_EMPTY: 'You are not on a team yet.',
+    PLAYER_FIND_TEAM: 'Find a team',
+    PLAYER_VIEW_TEAM: 'View',
+    PLAYER_CAPTAIN: 'Captain',
+    PLAYER_HERO_POOL: 'Hero pool',
+    PLAYER_LFT_SET: 'Mark me as looking',
+    PLAYER_LFT_UNSET: 'Stop looking',
+    PLAYER_RATING_HISTORY: 'Rating history',
+    PLAYER_RATING_HISTORY_EMPTY: 'Not enough rating history to chart yet.',
+    PLAYER_WATCHERS_TITLE: 'Scouts watching me',
+    PLAYER_WATCHERS_EMPTY: 'No scouts are watching you yet.',
+    PLAYER_PEAK: 'Peak',
+    PLAYER_CURRENT: 'Current',
+    PLAYER_RECOMMENDED_TITLE: 'Recommended teams',
+    PLAYER_RECOMMENDED_EMPTY: 'No recruiting teams match right now.',
+    PLAYER_APPLY: 'Apply',
+    PLAYER_ACTIVITY_TITLE: 'Recent activity',
+    PLAYER_ACTIVITY_EMPTY: 'No activity yet.',
+    PLAYER_AVAILABILITY: 'Availability',
+    // Coach dashboard
+    COACH_TEAMS_TITLE: 'Teams I coach',
+    COACH_TEAMS_EMPTY: 'You are not attached to any team yet.',
+    COACH_SPECIALTIES: 'Specialties',
+    COACH_EXPERIENCE: 'Experience',
+    COACH_YEARS: 'yrs',
+    COACH_AVAILABILITY: 'Availability',
+    COACH_ENDORSEMENTS: 'Endorsements',
+    // Activity ledger reason labels
+    RATING_REASONS: {
+      initial: 'Joined',
+      match_result: 'Match result',
+      endorsement: 'Endorsement',
+      achievement: 'Achievement',
+      admin_adjustment: 'Adjustment',
+    },
     PLAYER_APPLICATIONS: 'Team applications',
     PLAYER_APPLICATIONS_SOON: 'Apply to teams and track responses here (Phase 2).',
     COACH_TITLE: 'Coach',
@@ -170,6 +212,12 @@ export const APP_CONSTANTS = {
     SCOUT_TITLE: 'Scout',
     SCOUT_BODY: 'Track players you are watching and express interest.',
     SCOUT_SOON: 'Watchlists and scout-interest tools arrive in Phase 2.',
+    SCOUT_WATCHLIST_TITLE: 'My watchlist',
+    SCOUT_WATCHLIST_EMPTY: 'Your watchlist is empty. Add players below or from their profile.',
+    SCOUT_ADD_TITLE: 'Add a player',
+    SCOUT_SEARCH: 'Search players by name…',
+    SCOUT_WATCH: 'Watch',
+    SCOUT_REMOVE: 'Remove',
     TEAM_MANAGER_TITLE: 'Team Manager',
     TEAM_MANAGER_BODY: 'Create and manage your team and roster.',
     TEAM_MANAGER_SOON: 'Team creation, rosters and applications arrive in Phase 2.',
@@ -301,6 +349,35 @@ export const APP_CONSTANTS = {
   },
 
   // ========================================
+  // NEWS / BLOG
+  // ========================================
+  NEWS: {
+    TITLE: 'Community News',
+    SUBTITLE: 'Updates and announcements from the community.',
+    SUBMIT: 'Submit news',
+    FORM_TITLE: 'Title',
+    FORM_BODY: 'Body',
+    FORM_IMAGE: 'Image URL (optional)',
+    FORM_SUBMIT: 'Submit for review',
+    FORM_SUBMITTING: 'Submitting…',
+    SUBMITTED_NOTE: 'Submitted! An admin will review it before it goes live.',
+    CANCEL: 'Cancel',
+    PENDING_TITLE: 'Pending review',
+    PENDING_EMPTY: 'Nothing waiting for review.',
+    APPROVE: 'Approve',
+    REJECT: 'Reject',
+    MINE_TITLE: 'Your submissions',
+    MINE_EMPTY: 'You have not submitted any news yet.',
+    DELETE: 'Delete',
+    FEED_TITLE: 'Latest news',
+    FEED_EMPTY: 'No news yet — check back soon.',
+    VIEW_ALL: 'View all news',
+    BY: 'by',
+    STATUS: { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' },
+    ERROR: 'Something went wrong.',
+  },
+
+  // ========================================
   // CONFIRM DIALOG
   // ========================================
   CONFIRM: {
@@ -325,6 +402,13 @@ export const APP_CONSTANTS = {
     LANE: 'Lane',
     RANK: 'Rank',
     SERVER: 'In-game name',
+    AVAILABILITY: 'Availability',
+    HERO_POOL: 'Hero pool',
+    WATCH: 'Watch player',
+    WATCHING: 'Watching',
+    ENDORSE: 'Endorse',
+    ENDORSED: 'Endorsed',
+    ENDORSEMENTS: 'endorsements',
   },
 
   // ========================================
