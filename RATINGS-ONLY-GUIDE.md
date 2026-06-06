@@ -10,6 +10,42 @@ then **suggestions for improving the rating system** itself.
 
 ---
 
+## ⭐ At a glance — the only things you MUST keep
+
+If you remember nothing else, keep exactly this. Everything not on this list can
+be deleted.
+
+### ✅ KEEP (the rating system + what it needs to work)
+
+**Database**
+- 🟢 `ratings` + `rating_events` tables — *the scores and their history*
+- 🟢 The enums `subject_type`, `rating_reason`, `user_role`
+- 🟢 ALL of `0002_functions.sql` — *the rating engine (Elo, deltas, triggers)*
+- 🟢 `profiles` + `user_roles` tables — *ratings attach to these / get seeded by these*
+- 🟢 Auth (Discord login) — *identifies who a rating belongs to*
+
+**Frontend**
+- 🟢 `src/lib/supabase.js`, `src/hooks/useAuth.jsx` — *connection + login*
+- 🟢 `src/hooks/useRankings.js` + `useAdmin.js` — *read/adjust ratings* (edit, see ⚠️)
+- 🟢 A leaderboard page (`Players.jsx` / `Teams.jsx`) + `Login.jsx` + `DiscordCallback.jsx`
+
+### ❌ REMOVE (every other feature)
+
+> 🔴 Teams · 🔴 Scouting · 🔴 Endorsements feature · 🔴 News · 🔴 Community
+> 🔴 Talent directory · 🔴 Profile view/edit & onboarding · 🔴 Dashboard
+
+In SQL terms: **drop migrations `0007`–`0011`** (and trim `0001`/`0003`/`0004`).
+In the app: **delete the matching pages, hooks, and components.**
+
+### ⚠️ The one gotcha
+
+`useRankings.js` references the **teams** tables. If you remove teams, you **must
+edit `useRankings.js`** (details in [Part 3](#-important-caveat--userankingsjs-depends-on-teams)) or the leaderboard breaks.
+
+*(Full keep/remove tables, exact files, and step order are in Parts 2–4 below.)*
+
+---
+
 ## Part 1 — What the rating system actually is
 
 The rating system is a small, self-contained core:
