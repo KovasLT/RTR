@@ -28,6 +28,7 @@ talent-discovery, and recruitment platform.
 
 | Doc                                          | What it's for                              |
 | -------------------------------------------- | ------------------------------------------ |
+| [`DOCS-MAP.md`](DOCS-MAP.md)                 | Index of all docs — what to look for where |
 | **`START HERE.md`** (this file)              | Handover + full local setup                |
 | [`README.md`](README.md)                     | Project overview + quick start             |
 | [`CODE_WALKTHROUGH.md`](CODE_WALKTHROUGH.md) | How the codebase fits together             |
