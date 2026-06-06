@@ -1,4 +1,4 @@
-# Docs Map — What to Look for Where
+# Guide to Navigate the Project — What to Look for Where
 
 This project has several guide files. This page is the **map**: it tells you which
 one to open depending on who you are and what you're trying to do, so you never
@@ -27,7 +27,7 @@ have to guess.
 | **[CODE_WALKTHROUGH.md](CODE_WALKTHROUGH.md)** | Developers | How the code is organised: architecture, routing, auth, data layer, backend, common flows | A developer needs to understand or change how it's built |
 | **[supabase/README.md](supabase/README.md)** | Developers | Backend setup: creating the Supabase project, Discord auth, applying the database schema | Setting up or fixing the database (the "backend") |
 | **[CLAUDE.md](CLAUDE.md)** | Developers / AI tools | The project's rules and conventions (e.g. all text in one file, no hardcoded data) | Writing code and want to follow house style |
-| **[DOCS-MAP.md](DOCS-MAP.md)** (this file) | Everyone | The index of all the docs | You're not sure which doc to read |
+| **[guide-to-navigate-project.md](guide-to-navigate-project.md)** (this file) | Everyone | The index of all the docs | You're not sure which doc to read |
 
 ---
 
@@ -67,7 +67,7 @@ have to guess.
 ## Suggested reading order
 
 1. **[NON-DEVELOPER-README.md](NON-DEVELOPER-README.md)** — the big picture in plain words.
-2. **[DOCS-MAP.md](DOCS-MAP.md)** — this file, so you know what else exists.
+2. **[guide-to-navigate-project.md](guide-to-navigate-project.md)** — this file, so you know what else exists.
 3. **[START HERE.md](START%20HERE.md)** — get it running (or hand it to a developer).
 4. **[README.md](README.md)** + **[CODE_WALKTHROUGH.md](CODE_WALKTHROUGH.md)** — for developers going deeper.
 5. **[supabase/README.md](supabase/README.md)** + **[CLAUDE.md](CLAUDE.md)** — backend setup and coding conventions.

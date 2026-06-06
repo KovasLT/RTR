@@ -60,7 +60,7 @@ where to go:
 | File | Who it's for | Open it when… |
 | --- | --- | --- |
 | **NON-DEVELOPER-README.md** (this one) | You, the non-coder | You want the big picture in plain words |
-| **DOCS-MAP.md** | Everyone | You're not sure which doc to open |
+| **guide-to-navigate-project.md** | Everyone | You're not sure which doc to open |
 | **START HERE.md** | Whoever sets it up technically | You're handing the project to a developer to get it running |
 | **README.md** | Developers | A developer wants the quick technical overview |
 | **CODE_WALKTHROUGH.md** | Developers | A developer wants to understand how it's built |
