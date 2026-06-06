@@ -1,98 +1,140 @@
-# RTR - Rising Teams Rating
+# RTR — Rising Teams Rating
 
-A modern React application for tracking esports community rankings across WEU, EEU, and MENA regions.
+A **Honor of Kings (HoK)** tournament-hosting, talent-discovery, and recruitment
+platform. Players, teams, coaches, scouts, and managers each carry a single
+unified Elo rating that moves through verified match results, endorsements, and
+achievements.
 
-## Features
+Built with **React 19 + Vite** on the frontend and **Supabase**
+(Postgres + Auth + Row-Level Security + Storage) on the backend. Authentication
+is **Discord-only**, via Supabase's Discord provider.
 
-- **Teams Leaderboard** with regional filtering and live status indicators
-- **Player Rankings** with team affiliations and performance metrics
-- **Community Hub** with Discord servers, streamers, and event organizers
-- **Real-time Statistics** dashboard with tracked metrics
-- **Responsive Design** optimized for desktop and mobile
-- **Code Splitting** for optimal performance
-- **Dark Theme** with esports-focused aesthetic
+---
+
+## Quick Start
+
+### Prerequisites
+
+- **Node.js 18+** and **npm 9+**
+- A **Supabase project** (free tier is fine) — see [Backend setup](#backend-setup) below
+- A **Discord application** for OAuth login
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure environment
+
+Copy the example env file and fill in your Supabase credentials
+(**Supabase dashboard → Settings → API**):
+
+```bash
+cp .env.example .env
+```
+
+```env
+VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+VITE_SUPABASE_ANON_KEY=your_anon_public_key
+```
+
+> The `anon` key is publishable and is meant to live in the frontend — RLS is
+> what protects your data. Never put the `service_role` key in `.env`.
+
+`.env` is gitignored. If these vars are missing the app still boots, but shows a
+"setup needed" state instead of crashing.
+
+### 3. Set up the backend
+
+The database schema, auth, and seed data live in [`supabase/`](supabase/). Follow
+**[`supabase/README.md`](supabase/README.md)** for the full walkthrough. In short:
+
+1. Enable the **Discord** provider in Supabase Auth and wire up the callback URL.
+2. In the Supabase **SQL Editor**, run the migrations in order, then the seed:
+   - `supabase/migrations/0001_core.sql` … through the latest `00NN_*.sql`
+   - `supabase/seed.sql`
+3. (Optional) make yourself an admin:
+   ```sql
+   update profiles set is_admin = true where email = 'you@example.com';
+   ```
+
+### 4. Run the app
+
+```bash
+npm run dev
+```
+
+Open **http://localhost:5173**, click **Continue with Discord**. On first login a
+`profiles` row is created automatically and you're sent to onboarding.
+
+---
+
+## Available Scripts
+
+```bash
+npm run dev      # Start dev server with HMR (http://localhost:5173)
+npm run build    # Production build with code splitting
+npm run preview  # Preview the production build locally
+npm run lint     # Run ESLint over the codebase
+```
+
+---
 
 ## Tech Stack
 
-- **React 19** with modern hooks and Suspense
-- **React Router DOM 7** for client-side routing
-- **Tailwind CSS 4** for utility-first styling
-- **Vite 8** for fast development and optimized builds
-- **FontAwesome** icons and **flagcdn.com** for country flags
+| Layer       | Choice                                                        |
+| ----------- | ------------------------------------------------------------ |
+| UI          | React 19, React Router DOM 7                                  |
+| Build       | Vite 8 (HMR, route-based code splitting)                      |
+| Styling     | Tailwind CSS 3                                                |
+| Data        | TanStack React Query 5 + `@supabase/supabase-js`             |
+| Backend     | Supabase (Postgres, Auth, RLS, Storage)                      |
+| Auth        | Discord OAuth via Supabase (PKCE flow)                        |
 
-## Getting Started
-
-### Prerequisites
-- Node.js 18+ 
-- npm 9+
-
-### Installation
-
-```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Visit http://localhost:5173
-```
-
-### Available Scripts
-
-```bash
-npm run dev      # Start development server with HMR
-npm run build    # Build for production with optimizations  
-npm run preview  # Preview production build locally
-npm run lint     # Run ESLint on codebase
-```
+---
 
 ## Project Structure
 
 ```
 src/
-├── components/          # Reusable UI components
-├── pages/              # Route components (lazy loaded)
-├── hooks/              # Custom React hooks
-└── utils/              # Helper functions
+├── app-constants.jsx   # ALL UI copy (no hardcoded strings in components)
+├── App.jsx             # Router, providers (React Query + Auth), layout
+├── lib/supabase.js     # Shared Supabase browser client
+├── hooks/              # React Query data hooks + useAuth context
+├── components/         # Reusable UI (Header, Footer, admin/, ...)
+└── pages/              # Route-level components (lazy loaded)
 
-public/
-└── data/               # JSON data files for teams/players
+supabase/
+├── migrations/         # Ordered SQL: schema, functions, RLS, grants, features
+├── seed.sql            # Reference + demo data
+└── README.md           # Full backend setup guide
 ```
 
-## Data Management
+For a deeper tour of how it all fits together, see
+**[`CODE_WALKTHROUGH.md`](CODE_WALKTHROUGH.md)**.
 
-Team and player data is stored in JSON files in the `public/data/` directory:
+---
 
-- `teams.json` - Team information with ratings, records, and regional data
-- `players.json` - Individual player stats and team affiliations
+## How ratings work
 
-Data is fetched client-side using the custom `useData` hook with automatic error handling and loading states.
+Every subject — player, team, coach, scout, manager — sits on **one Elo scale
+(1200 baseline)**. Ratings are **never written from the client**: there is no RLS
+write policy on the rating tables. Instead, all changes flow through
+`SECURITY DEFINER` SQL functions (`apply_elo_match`, `apply_endorsement`,
+`apply_achievement`, `admin_adjust_rating`) which append to a `rating_events`
+ledger. This keeps the rating system tamper-resistant and auditable.
 
-## Development
+---
 
-The application uses modern React patterns:
+## Conventions
 
-- **Lazy Loading**: Pages are code-split using React.lazy()
-- **Suspense Boundaries**: Loading states handled declaratively
-- **Custom Hooks**: Centralized data fetching and state management
-- **CSS Splitting**: Automatic style extraction and optimization
-
-### Adding New Data
-
-1. Edit JSON files in `public/data/`
-2. Follow existing data structure
-3. Use valid ISO country codes for flags
-4. Restart dev server to see changes
-
-## Build Optimizations
-
-- **Automatic Code Splitting** by route and vendor libraries
-- **CSS Code Splitting** for optimal loading performance  
-- **Tree Shaking** removes unused code
-- **Asset Optimization** compresses images and fonts
-- **Bundle Analysis** via Vite's built-in tools
+- **All UI text** lives in `src/app-constants.jsx` — components hold no string
+  literals except dynamic data.
+- **No hardcoded data** — everything comes from Supabase (including reference
+  tables: lanes, ranks, regions, heroes).
+- **JavaScript only** (`.jsx` / `.js`), no TypeScript.
 
 ## License
 
-MIT License - see LICENSE file for details
+MIT License — see LICENSE file for details.
