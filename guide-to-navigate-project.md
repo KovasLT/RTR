@@ -27,6 +27,7 @@ have to guess.
 | **[CODE_WALKTHROUGH.md](CODE_WALKTHROUGH.md)** | Developers | How the code is organised: architecture, routing, auth, data layer, backend, common flows | A developer needs to understand or change how it's built |
 | **[supabase/README.md](supabase/README.md)** | Developers | Backend setup: creating the Supabase project, Discord auth, applying the database schema | Setting up or fixing the database (the "backend") |
 | **[CLAUDE.md](CLAUDE.md)** | Developers / AI tools | The project's rules and conventions (e.g. all text in one file, no hardcoded data) | Writing code and want to follow house style |
+| **[RATINGS-ONLY-GUIDE.md](RATINGS-ONLY-GUIDE.md)** | Developers | How to strip the project down to just the rating system, plus ideas to improve ratings | You want only the ratings, or want to evolve the rating engine |
 | **[guide-to-navigate-project.md](guide-to-navigate-project.md)** (this file) | Everyone | The index of all the docs | You're not sure which doc to read |
 
 ---
@@ -46,6 +47,8 @@ have to guess.
 | Add demo/test data | `START HERE.md` → "Demo data" |
 | Fix a setup problem (login fails, no data, errors) | `START HERE.md` → "Troubleshooting" |
 | Follow the project's coding conventions | `CLAUDE.md` |
+| Keep only the rating system (remove everything else) | `RATINGS-ONLY-GUIDE.md` |
+| Improve / change how ratings are calculated | `RATINGS-ONLY-GUIDE.md` → "Suggestions" |
 
 ---
 
