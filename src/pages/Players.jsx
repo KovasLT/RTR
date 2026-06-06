@@ -1,12 +1,13 @@
-import { useData } from '../hooks/useData';
+import { Link } from 'react-router-dom';
+import { usePlayerRankings } from '../hooks/useRankings';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { APP_CONSTANTS } from '../app-constants';
 
 const Players = () => {
-  const { players, isLoading, error } = useData();
+  const { data: players = [], isLoading, error } = usePlayerRankings();
 
   if (isLoading) return <LoadingSpinner />;
-  if (error) return <div className="text-center text-red-400">{APP_CONSTANTS.UI.ERROR_LOADING_DATA} {error}</div>;
+  if (error) return <div className="text-center text-red-400">{APP_CONSTANTS.UI.ERROR_LOADING_DATA} {error.message}</div>;
 
   return (
     <div className="animate-fade-in">
@@ -26,24 +27,24 @@ const Players = () => {
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {players.map((player, index) => {
-                const flagCode = player.flag ? player.flag.toLowerCase() : 'un';
+                const flagCode = player.country ? player.country.toLowerCase() : 'un';
 
                 return (
-                  <tr key={player.name + player.team} className="rtr-table-row hover:bg-slate-900/40 transition">
+                  <tr key={player.id} className="rtr-table-row hover:bg-slate-900/40 transition">
                     <td className="px-6 py-4 font-bold text-slate-400 font-mono">{index + 1}</td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center space-x-2.5">
+                      <Link to={`/profile/${player.id}`} className="flex items-center space-x-2.5 group">
                         <img
                           src={`https://flagcdn.com/${flagCode}.svg`}
                           width="20"
                           className="rounded-[2px] shadow-sm"
-                          alt={`${player.flag} flag`}
+                          alt={player.country || 'flag'}
                         />
-                        <span className="font-bold text-white tracking-wide">{player.name}</span>
-                      </div>
+                        <span className="font-bold text-white tracking-wide group-hover:text-indigo-300">{player.name}</span>
+                      </Link>
                     </td>
-                    <td className="px-6 py-4 text-slate-400 text-xs font-semibold">{player.role}</td>
-                    <td className="px-6 py-4 text-slate-400 text-xs font-semibold">{player.team}</td>
+                    <td className="px-6 py-4 text-slate-400 text-xs font-semibold">{player.lane || '—'}</td>
+                    <td className="px-6 py-4 text-slate-400 text-xs font-semibold">{player.team || '—'}</td>
                     <td className="px-6 py-4 font-mono font-black text-indigo-400">{player.rating}</td>
                   </tr>
                 );

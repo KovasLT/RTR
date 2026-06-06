@@ -37,7 +37,10 @@ const mapUser = (authUser, profile) => {
     discordId: profile?.discord_id || meta.provider_id || null,
     bio: profile?.bio || null,
     regionId: profile?.region_id || null,
-    isAdmin: profile?.is_admin || false,
+    // Super users are higher-privileged admins: they get the admin dashboard
+    // too, so isAdmin is true for either flag. isSuperuser distinguishes them.
+    isAdmin: profile?.is_admin || profile?.is_superuser || false,
+    isSuperuser: profile?.is_superuser || false,
     provider: 'discord',
     createdAt: profile?.created_at || authUser.created_at,
   };

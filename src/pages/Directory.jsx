@@ -115,6 +115,7 @@ const Directory = () => {
               <div className="flex flex-wrap gap-1.5">
                 {p.roles.map((role) => (
                   <span key={role} className="text-[11px] bg-gray-800 border border-gray-700 text-gray-300 rounded px-2 py-0.5">
+                    <i className={`fas ${APP_CONSTANTS.ROLE_ICONS[role]} mr-1 text-indigo-300`}></i>
                     {APP_CONSTANTS.ROLES[role]}
                   </span>
                 ))}

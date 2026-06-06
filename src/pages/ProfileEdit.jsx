@@ -233,6 +233,7 @@ const ProfileEdit = () => {
                       : 'bg-gray-800 border-gray-600 text-gray-300 hover:border-gray-500'
                   }`}
                 >
+                  <i className={`fas ${APP_CONSTANTS.ROLE_ICONS[r]} mr-2`}></i>
                   {APP_CONSTANTS.ROLES[r]}
                 </button>
               );

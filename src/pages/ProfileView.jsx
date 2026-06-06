@@ -83,7 +83,10 @@ const ProfileView = () => {
               const rating = ratingFor(role);
               return (
                 <div key={role} className="flex items-center justify-between bg-gray-800/60 rounded-lg px-4 py-3">
-                  <span className="text-white font-medium">{APP_CONSTANTS.ROLES[role]}</span>
+                  <span className="text-white font-medium">
+                    <i className={`fas ${APP_CONSTANTS.ROLE_ICONS[role]} mr-2 text-indigo-300`}></i>
+                    {APP_CONSTANTS.ROLES[role]}
+                  </span>
                   {rating && (
                     <span className="text-indigo-300 font-mono font-bold">{rating.rating}</span>
                   )}

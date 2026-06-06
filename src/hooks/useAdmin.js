@@ -12,7 +12,7 @@ export const useAdminUsers = () =>
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, handle, display_name, avatar_url, email, is_admin, created_at, roles:user_roles(role)')
+        .select('id, handle, display_name, avatar_url, email, is_admin, is_superuser, created_at, roles:user_roles(role)')
         .order('created_at', { ascending: true });
       if (error) throw error;
       return (data ?? []).map((u) => ({ ...u, roles: (u.roles ?? []).map((r) => r.role) }));
@@ -32,13 +32,14 @@ export const useAdminStats = () =>
         if (error) throw error;
         return c ?? 0;
       };
-      const [users, players, admins, ratings] = await Promise.all([
+      const [users, players, admins, superusers, ratings] = await Promise.all([
         count('profiles'),
         count('user_roles', (q) => q.eq('role', 'player')),
         count('profiles', (q) => q.eq('is_admin', true)),
+        count('profiles', (q) => q.eq('is_superuser', true)),
         count('ratings'),
       ]);
-      return { users, players, admins, ratings };
+      return { users, players, admins, superusers, ratings };
     },
   });
 

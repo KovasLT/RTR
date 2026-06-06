@@ -16,6 +16,7 @@ const Directory = lazy(() => import('./pages/Directory'));
 const ProfileView = lazy(() => import('./pages/ProfileView'));
 const ProfileEdit = lazy(() => import('./pages/ProfileEdit'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const TeamManage = lazy(() => import('./pages/TeamManage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const DiscordCallback = lazy(() => import('./pages/DiscordCallback'));
 
@@ -46,6 +47,7 @@ function App() {
                   <Route path="/profile" element={<ProfileView />} />
                   <Route path="/profile/:id" element={<ProfileView />} />
                   <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/team/:id" element={<TeamManage />} />
                   <Route path="/admin" element={<AdminDashboard />} />
                   <Route path="/auth/discord/callback" element={<DiscordCallback />} />
                 </Routes>

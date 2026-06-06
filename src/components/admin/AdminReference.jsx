@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase.js';
 import { useLanes, useRanks, useRegions, useHeroes } from '../../hooks/useReferenceData.js';
 import { APP_CONSTANTS } from '../../app-constants';
+import ConfirmDialog from '../ConfirmDialog';
 
 const A = APP_CONSTANTS.ADMIN;
 
@@ -16,36 +17,66 @@ const RefSection = ({ table, title, query, columns, label }) => {
   const [form, setForm] = useState({});
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  // Pending confirmation: { kind: 'add' | 'delete', message, detail, run }
+  const [pending, setPending] = useState(null);
 
   const invalidate = () => qc.invalidateQueries({ queryKey: [table] });
 
-  const add = async () => {
+  const doAdd = async () => {
+    const payload = {};
+    for (const c of columns) {
+      let v = form[c.key] ?? '';
+      if (c.type === 'number') v = v === '' ? null : Number(v);
+      payload[c.key] = v;
+    }
+    const { error: err } = await supabase.from(table).insert(payload);
+    if (err) throw err;
+    setForm({});
+    invalidate();
+  };
+
+  const doRemove = async (id) => {
+    // .select() returns the rows actually deleted; an empty result means RLS or
+    // a foreign-key reference blocked it (so the × would otherwise do nothing).
+    const { data, error: err } = await supabase.from(table).delete().eq('id', id).select('id');
+    if (err) throw err;
+    if (!data || data.length === 0) throw new Error(A.REF_DELETE_FAILED);
+    invalidate();
+  };
+
+  // Run the pending (already-confirmed) action with shared busy/error handling.
+  const confirmPending = async () => {
+    if (!pending) return;
     setBusy(true);
     setError(null);
     try {
-      const payload = {};
-      for (const c of columns) {
-        let v = form[c.key] ?? '';
-        if (c.type === 'number') v = v === '' ? null : Number(v);
-        payload[c.key] = v;
-      }
-      const { error: err } = await supabase.from(table).insert(payload);
-      if (err) throw err;
-      setForm({});
-      invalidate();
+      await pending.run();
+      setPending(null);
     } catch (e) {
       setError(e.message || A.ERROR);
+      setPending(null);
     } finally {
       setBusy(false);
     }
   };
 
-  const remove = async (id) => {
-    setError(null);
-    const { error: err } = await supabase.from(table).delete().eq('id', id);
-    if (err) setError(err.message);
-    else invalidate();
-  };
+  const askAdd = () =>
+    setPending({
+      kind: 'add',
+      message: A.REF_ADD_CONFIRM,
+      detail: form[columns[0].key] || '',
+      danger: false,
+      run: doAdd,
+    });
+
+  const askRemove = (r) =>
+    setPending({
+      kind: 'delete',
+      message: A.REF_DELETE_CONFIRM,
+      detail: label(r),
+      danger: true,
+      run: () => doRemove(r.id),
+    });
 
   return (
     <div className="rtr-card">
@@ -63,11 +94,11 @@ const RefSection = ({ table, title, query, columns, label }) => {
           />
         ))}
         <button
-          onClick={add}
+          onClick={askAdd}
           disabled={busy}
           className="text-sm bg-indigo-600 hover:bg-indigo-500 text-white rounded px-3 py-1 disabled:opacity-50"
         >
-          {busy ? A.SAVING : A.REF_ADD}
+          {A.REF_ADD}
         </button>
       </div>
 
@@ -77,12 +108,24 @@ const RefSection = ({ table, title, query, columns, label }) => {
         {rows.map((r) => (
           <span key={r.id} className="text-xs bg-gray-800 border border-gray-700 text-gray-300 rounded px-2 py-1 flex items-center gap-2">
             {label(r)}
-            <button onClick={() => remove(r.id)} className="text-gray-500 hover:text-red-400" title={A.REF_DELETE}>
+            <button onClick={() => askRemove(r)} className="text-gray-500 hover:text-red-400" title={A.REF_DELETE}>
               <i className="fas fa-times"></i>
             </button>
           </span>
         ))}
       </div>
+
+      {pending && (
+        <ConfirmDialog
+          message={pending.message}
+          detail={pending.detail}
+          danger={pending.danger}
+          busy={busy}
+          confirmLabel={pending.danger ? A.REF_DELETE : A.REF_ADD}
+          onConfirm={confirmPending}
+          onCancel={() => setPending(null)}
+        />
+      )}
     </div>
   );
 };

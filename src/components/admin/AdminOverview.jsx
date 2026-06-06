@@ -16,10 +16,11 @@ const AdminOverview = () => {
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
       <StatCard label={A.STAT_USERS} value={stats?.users ?? 0} />
       <StatCard label={A.STAT_PLAYERS} value={stats?.players ?? 0} />
       <StatCard label={A.STAT_ADMINS} value={stats?.admins ?? 0} />
+      <StatCard label={A.STAT_SUPERUSERS} value={stats?.superusers ?? 0} />
       <StatCard label={A.STAT_RATINGS} value={stats?.ratings ?? 0} />
     </div>
   );

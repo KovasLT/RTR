@@ -38,8 +38,10 @@ export const APP_CONSTANTS = {
     REGISTER: 'Register', // Register page link
     LOGOUT: 'Logout', // Logout button
     PROFILE: 'Profile', // User profile link
+    EDIT_PROFILE: 'Edit profile', // Edit profile link in user menu
     DASHBOARD: 'Dashboard', // Role dashboard link
     ADMIN: 'Admin', // Admin dashboard link (admins only)
+    MENU: 'Menu', // Mobile menu toggle label
   },
 
   // ========================================
@@ -84,6 +86,15 @@ export const APP_CONSTANTS = {
     scout: 'Scout',
     tournament_manager: 'Tournament Manager',
     team_manager: 'Team Manager',
+  },
+
+  /** FontAwesome 6 icon class for each role. */
+  ROLE_ICONS: {
+    player: 'fa-gamepad',
+    coach: 'fa-chalkboard-user',
+    scout: 'fa-binoculars',
+    tournament_manager: 'fa-trophy',
+    team_manager: 'fa-users-gear',
   },
 
   // ========================================
@@ -141,6 +152,7 @@ export const APP_CONSTANTS = {
     NO_ROLES_TITLE: 'No roles yet',
     NO_ROLES_BODY: 'Add a role to your profile to unlock its dashboard.',
     SET_UP_PROFILE: 'Set up profile',
+    OVERVIEW: 'Overview',
     VIEW_AS: 'View as',
     VIEWING_AS_ADMIN: 'Previewing as admin',
     EDIT_PROFILE: 'Edit profile',
@@ -161,9 +173,81 @@ export const APP_CONSTANTS = {
     TEAM_MANAGER_TITLE: 'Team Manager',
     TEAM_MANAGER_BODY: 'Create and manage your team and roster.',
     TEAM_MANAGER_SOON: 'Team creation, rosters and applications arrive in Phase 2.',
+    TEAM_MANAGER_EMPTY: 'You have not created a team yet.',
+    TEAM_MANAGER_CREATE: 'Create team',
+    TEAM_MANAGE: 'Manage',
+    TEAM_MEMBERS_COUNT: 'members',
+    TEAM_PENDING_APPS: 'pending',
+    // Player — applications & invites
+    PLAYER_APPS_TITLE: 'Applications & invites',
+    PLAYER_APPS_EMPTY: 'No applications or invites yet.',
+    APP_ACCEPT: 'Accept',
+    APP_WITHDRAW: 'Withdraw',
+    APP_DECLINE: 'Decline',
+    APP_SENT: 'Applied',
+    APP_INVITE: 'Invited',
     TOURNAMENT_MANAGER_TITLE: 'Tournament Manager',
     TOURNAMENT_MANAGER_BODY: 'Host tournaments, register teams and run brackets.',
     TOURNAMENT_MANAGER_SOON: 'Tournament hosting and brackets arrive in Phase 3.',
+  },
+
+  // ========================================
+  // TEAM MANAGEMENT (manage page + recruitment)
+  // ========================================
+  TEAM_MGMT: {
+    CREATE_TITLE: 'Create a team',
+    MANAGE_TITLE: 'Manage team',
+    NOT_MANAGER: 'Only the team manager can edit this team.',
+    NAME_LABEL: 'Team name',
+    TAG_LABEL: 'Tag',
+    LOGO_LABEL: 'Logo URL',
+    REGION_LABEL: 'Region',
+    STATUS_LABEL: 'Status',
+    RECRUITMENT_LABEL: 'Recruitment note',
+    RECRUITMENT_PLACEHOLDER: 'What roles/players are you looking for?',
+    STATUS_RECRUITING: 'Recruiting',
+    STATUS_ACTIVE: 'Active',
+    STATUS_INACTIVE: 'Inactive',
+    SAVE: 'Save changes',
+    SAVING: 'Saving…',
+    CREATE: 'Create team',
+    CREATING: 'Creating…',
+    SELECT_PLACEHOLDER: 'Select…',
+    // Roster
+    ROSTER_TITLE: 'Roster',
+    ROSTER_EMPTY: 'No members yet. Invite players below.',
+    CAPTAIN: 'Captain',
+    MAKE_CAPTAIN: 'Make captain',
+    REMOVE_MEMBER: 'Remove',
+    // Staff
+    STAFF_TITLE: 'Staff',
+    STAFF_EMPTY: 'No staff assigned yet.',
+    STAFF_ADD_TITLE: 'Add staff',
+    STAFF_SEARCH: 'Search people by name…',
+    STAFF_ADD: 'Add',
+    STAFF_REMOVE: 'Remove',
+    STAFF_ROLES: { coach: 'Coach', scout: 'Scout', analyst: 'Analyst' },
+    STAFF_ROLE_ICONS: { coach: 'fa-chalkboard-user', scout: 'fa-binoculars', analyst: 'fa-magnifying-glass-chart' },
+    // Applications inbox
+    INBOX_TITLE: 'Applications',
+    INBOX_EMPTY: 'No pending applications.',
+    INBOX_ACCEPT: 'Accept',
+    INBOX_REJECT: 'Reject',
+    // Invite
+    INVITE_TITLE: 'Invite a player',
+    INVITE_SEARCH: 'Search players by name…',
+    INVITE_SEND: 'Invite',
+    INVITE_SENT: 'Invited',
+    BACK_TO_DASHBOARD: 'Back to dashboard',
+    ERROR: 'Something went wrong.',
+    // Public view
+    RATING: 'Rating',
+    MANAGED_BY: 'Managed by',
+    APPLY: 'Apply to team',
+    APPLYING: 'Applying…',
+    APPLIED: 'Application sent',
+    ON_ROSTER: 'You’re on this roster',
+    RECRUITMENT_HEADING: 'Recruitment',
   },
 
   // ========================================
@@ -181,6 +265,7 @@ export const APP_CONSTANTS = {
     STAT_USERS: 'Users',
     STAT_PLAYERS: 'Players',
     STAT_ADMINS: 'Admins',
+    STAT_SUPERUSERS: 'Super users',
     STAT_RATINGS: 'Ratings tracked',
     // Users
     USERS_SEARCH: 'Search users…',
@@ -189,6 +274,7 @@ export const APP_CONSTANTS = {
     COL_ADMIN: 'Admin',
     MAKE_ADMIN: 'Make admin',
     REVOKE_ADMIN: 'Revoke admin',
+    SUPERUSER_BADGE: 'Super user',
     REMOVE_ROLE: 'Remove',
     // Ratings
     RATINGS_PICK_USER: 'Search a user…',
@@ -207,8 +293,21 @@ export const APP_CONSTANTS = {
     REF_NAME_PLACEHOLDER: 'Name',
     REF_CODE_PLACEHOLDER: 'Code',
     REF_DELETE: 'Delete',
+    REF_ADD_CONFIRM: 'Add this entry?',
+    REF_DELETE_CONFIRM: 'Delete this entry? This cannot be undone.',
+    REF_DELETE_FAILED: 'Could not delete — it may be in use, or you may not have permission.',
     SAVING: 'Saving…',
     ERROR: 'Something went wrong.',
+  },
+
+  // ========================================
+  // CONFIRM DIALOG
+  // ========================================
+  CONFIRM: {
+    TITLE: 'Please confirm',
+    CONFIRM: 'Confirm',
+    CANCEL: 'Cancel',
+    WORKING: 'Working…',
   },
 
   // ========================================
@@ -268,15 +367,23 @@ export const APP_CONSTANTS = {
     /** Table column headers */
     TABLE_HEADERS: {
       RANK: 'Rank', // Position in leaderboard
-      TEAM: 'Team', // Team name with flag
-      REGION: 'Region', // WEU/EEU/MENA region badge
-      RATING: 'Rating', // Numeric rating value
-      RECORD: 'Record (W-L)', // Win-Loss record
-      WIN_RATE: 'Win %', // Win percentage
-      STATUS: 'Status', // Active/inactive with indicator
+      TEAM: 'Team', // Team name
+      TAG: 'Tag', // Short team tag
+      REGION: 'Region', // Region badge
+      RATING: 'Rating', // Numeric Elo value
+      MEMBERS: 'Roster', // Roster size
+      STATUS: 'Status', // recruiting/active/inactive
+    },
+
+    /** Team status labels */
+    STATUS: {
+      recruiting: 'Recruiting',
+      active: 'Active',
+      inactive: 'Inactive',
     },
 
     EMPTY_STATE: 'No teams found for the selected region.', // Message when filter shows no results
+    ALL_REGIONS: 'ALL',
   },
 
   // ========================================
