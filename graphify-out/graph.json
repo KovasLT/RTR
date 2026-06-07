@@ -1,0 +1,382 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "label": "eslint.config.js",
+      "file_type": "code",
+      "source_file": "eslint.config.js",
+      "source_location": "L1",
+      "id": "eslint_config_js",
+      "community": 8,
+      "norm_label": "eslint.config.js"
+    },
+    {
+      "label": "postcss.config.js",
+      "file_type": "code",
+      "source_file": "postcss.config.js",
+      "source_location": "L1",
+      "id": "postcss_config_js",
+      "community": 9,
+      "norm_label": "postcss.config.js"
+    },
+    {
+      "label": "tailwind.config.js",
+      "file_type": "code",
+      "source_file": "tailwind.config.js",
+      "source_location": "L1",
+      "id": "tailwind_config_js",
+      "community": 10,
+      "norm_label": "tailwind.config.js"
+    },
+    {
+      "label": "vite.config.js",
+      "file_type": "code",
+      "source_file": "vite.config.js",
+      "source_location": "L1",
+      "id": "vite_config_js",
+      "community": 11,
+      "norm_label": "vite.config.js"
+    },
+    {
+      "label": "app-constants.jsx",
+      "file_type": "code",
+      "source_file": "src\\app-constants.jsx",
+      "source_location": "L1",
+      "id": "src_app_constants_jsx",
+      "community": 12,
+      "norm_label": "app-constants.jsx"
+    },
+    {
+      "label": "App.jsx",
+      "file_type": "code",
+      "source_file": "src\\App.jsx",
+      "source_location": "L1",
+      "id": "src_app_jsx",
+      "community": 1,
+      "norm_label": "app.jsx"
+    },
+    {
+      "label": "App()",
+      "file_type": "code",
+      "source_file": "src\\App.jsx",
+      "source_location": "L13",
+      "id": "src_app_app",
+      "community": 1,
+      "norm_label": "app()"
+    },
+    {
+      "label": "main.jsx",
+      "file_type": "code",
+      "source_file": "src\\main.jsx",
+      "source_location": "L1",
+      "id": "src_main_jsx",
+      "community": 13,
+      "norm_label": "main.jsx"
+    },
+    {
+      "label": "Footer.jsx",
+      "file_type": "code",
+      "source_file": "src\\components\\Footer.jsx",
+      "source_location": "L1",
+      "id": "src_components_footer_jsx",
+      "community": 2,
+      "norm_label": "footer.jsx"
+    },
+    {
+      "label": "Footer()",
+      "file_type": "code",
+      "source_file": "src\\components\\Footer.jsx",
+      "source_location": "L11",
+      "id": "components_footer_footer",
+      "community": 2,
+      "norm_label": "footer()"
+    },
+    {
+      "label": "Header.jsx",
+      "file_type": "code",
+      "source_file": "src\\components\\Header.jsx",
+      "source_location": "L1",
+      "id": "src_components_header_jsx",
+      "community": 3,
+      "norm_label": "header.jsx"
+    },
+    {
+      "label": "Header()",
+      "file_type": "code",
+      "source_file": "src\\components\\Header.jsx",
+      "source_location": "L13",
+      "id": "components_header_header",
+      "community": 3,
+      "norm_label": "header()"
+    },
+    {
+      "label": "LoadingSpinner.jsx",
+      "file_type": "code",
+      "source_file": "src\\components\\LoadingSpinner.jsx",
+      "source_location": "L1",
+      "id": "src_components_loadingspinner_jsx",
+      "community": 4,
+      "norm_label": "loadingspinner.jsx"
+    },
+    {
+      "label": "LoadingSpinner()",
+      "file_type": "code",
+      "source_file": "src\\components\\LoadingSpinner.jsx",
+      "source_location": "L12",
+      "id": "components_loadingspinner_loadingspinner",
+      "community": 4,
+      "norm_label": "loadingspinner()"
+    },
+    {
+      "label": "useData.js",
+      "file_type": "code",
+      "source_file": "src\\hooks\\useData.js",
+      "source_location": "L1",
+      "id": "src_hooks_usedata_js",
+      "community": 0,
+      "norm_label": "usedata.js"
+    },
+    {
+      "label": "useData()",
+      "file_type": "code",
+      "source_file": "src\\hooks\\useData.js",
+      "source_location": "L28",
+      "id": "hooks_usedata_usedata",
+      "community": 0,
+      "norm_label": "usedata()"
+    },
+    {
+      "label": "Community.jsx",
+      "file_type": "code",
+      "source_file": "src\\pages\\Community.jsx",
+      "source_location": "L1",
+      "id": "src_pages_community_jsx",
+      "community": 5,
+      "norm_label": "community.jsx"
+    },
+    {
+      "label": "Community()",
+      "file_type": "code",
+      "source_file": "src\\pages\\Community.jsx",
+      "source_location": "L5",
+      "id": "pages_community_community",
+      "community": 5,
+      "norm_label": "community()"
+    },
+    {
+      "label": "Home.jsx",
+      "file_type": "code",
+      "source_file": "src\\pages\\Home.jsx",
+      "source_location": "L1",
+      "id": "src_pages_home_jsx",
+      "community": 6,
+      "norm_label": "home.jsx"
+    },
+    {
+      "label": "Home()",
+      "file_type": "code",
+      "source_file": "src\\pages\\Home.jsx",
+      "source_location": "L20",
+      "id": "pages_home_home",
+      "community": 6,
+      "norm_label": "home()"
+    },
+    {
+      "label": "Players.jsx",
+      "file_type": "code",
+      "source_file": "src\\pages\\Players.jsx",
+      "source_location": "L1",
+      "id": "src_pages_players_jsx",
+      "community": 0,
+      "norm_label": "players.jsx"
+    },
+    {
+      "label": "Players()",
+      "file_type": "code",
+      "source_file": "src\\pages\\Players.jsx",
+      "source_location": "L5",
+      "id": "pages_players_players",
+      "community": 0,
+      "norm_label": "players()"
+    },
+    {
+      "label": "Teams.jsx",
+      "file_type": "code",
+      "source_file": "src\\pages\\Teams.jsx",
+      "source_location": "L1",
+      "id": "src_pages_teams_jsx",
+      "community": 7,
+      "norm_label": "teams.jsx"
+    },
+    {
+      "label": "Teams()",
+      "file_type": "code",
+      "source_file": "src\\pages\\Teams.jsx",
+      "source_location": "L6",
+      "id": "pages_teams_teams",
+      "community": 7,
+      "norm_label": "teams()"
+    }
+  ],
+  "links": [
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\App.jsx",
+      "source_location": "L13",
+      "weight": 1.0,
+      "_src": "src_app_jsx",
+      "_tgt": "src_app_app",
+      "source": "src_app_jsx",
+      "target": "src_app_app",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\Footer.jsx",
+      "source_location": "L11",
+      "weight": 1.0,
+      "_src": "src_components_footer_jsx",
+      "_tgt": "components_footer_footer",
+      "source": "src_components_footer_jsx",
+      "target": "components_footer_footer",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\Header.jsx",
+      "source_location": "L13",
+      "weight": 1.0,
+      "_src": "src_components_header_jsx",
+      "_tgt": "components_header_header",
+      "source": "src_components_header_jsx",
+      "target": "components_header_header",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\components\\LoadingSpinner.jsx",
+      "source_location": "L12",
+      "weight": 1.0,
+      "_src": "src_components_loadingspinner_jsx",
+      "_tgt": "components_loadingspinner_loadingspinner",
+      "source": "src_components_loadingspinner_jsx",
+      "target": "components_loadingspinner_loadingspinner",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\hooks\\useData.js",
+      "source_location": "L28",
+      "weight": 1.0,
+      "_src": "src_hooks_usedata_js",
+      "_tgt": "hooks_usedata_usedata",
+      "source": "src_hooks_usedata_js",
+      "target": "hooks_usedata_usedata",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src\\pages\\Community.jsx",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_src": "pages_community_community",
+      "_tgt": "hooks_usedata_usedata",
+      "source": "hooks_usedata_usedata",
+      "target": "pages_community_community"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src\\pages\\Home.jsx",
+      "source_location": "L24",
+      "weight": 1.0,
+      "_src": "pages_home_home",
+      "_tgt": "hooks_usedata_usedata",
+      "source": "hooks_usedata_usedata",
+      "target": "pages_home_home"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src\\pages\\Players.jsx",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_src": "pages_players_players",
+      "_tgt": "hooks_usedata_usedata",
+      "source": "hooks_usedata_usedata",
+      "target": "pages_players_players"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src\\pages\\Teams.jsx",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_src": "pages_teams_teams",
+      "_tgt": "hooks_usedata_usedata",
+      "source": "hooks_usedata_usedata",
+      "target": "pages_teams_teams"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\Community.jsx",
+      "source_location": "L5",
+      "weight": 1.0,
+      "_src": "src_pages_community_jsx",
+      "_tgt": "pages_community_community",
+      "source": "src_pages_community_jsx",
+      "target": "pages_community_community",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\Home.jsx",
+      "source_location": "L20",
+      "weight": 1.0,
+      "_src": "src_pages_home_jsx",
+      "_tgt": "pages_home_home",
+      "source": "src_pages_home_jsx",
+      "target": "pages_home_home",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\Players.jsx",
+      "source_location": "L5",
+      "weight": 1.0,
+      "_src": "src_pages_players_jsx",
+      "_tgt": "pages_players_players",
+      "source": "src_pages_players_jsx",
+      "target": "pages_players_players",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src\\pages\\Teams.jsx",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_src": "src_pages_teams_jsx",
+      "_tgt": "pages_teams_teams",
+      "source": "src_pages_teams_jsx",
+      "target": "pages_teams_teams",
+      "confidence_score": 1.0
+    }
+  ],
+  "hyperedges": []
+}
