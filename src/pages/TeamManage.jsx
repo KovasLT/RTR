@@ -28,6 +28,7 @@ const TeamManage = () => {
   const {
     updateTeam,
     updateMember,
+    addTeamMember,     // <-- new mutation
     invitePlayer,
     applyToTeam,
     respondToApplication,
@@ -186,6 +187,7 @@ const TeamManage = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
+      {/* Header - same as before */}
       <div className="rtr-card flex flex-wrap justify-between items-start gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">
@@ -233,6 +235,7 @@ const TeamManage = () => {
         </div>
       </div>
 
+      {/* Stats row - same */}
       {!loadingExtra && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="bg-gray-800/40 rounded-xl p-4 text-center">
@@ -254,6 +257,7 @@ const TeamManage = () => {
         </div>
       )}
 
+      {/* Recent matches - same */}
       <div className="rtr-card">
         <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
           <i className="fas fa-clock text-indigo-300"></i> Recent matches
@@ -284,6 +288,7 @@ const TeamManage = () => {
         )}
       </div>
 
+      {/* Achievements - same */}
       {!loadingExtra && tournamentPlacements.length > 0 && (
         <div className="rtr-card">
           <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
@@ -311,7 +316,9 @@ const TeamManage = () => {
         </div>
       )}
 
+      {/* Two-column layout for roster & staff */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Roster */}
         <div className="rtr-card">
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-lg font-semibold text-white flex items-center gap-2">
@@ -357,7 +364,10 @@ const TeamManage = () => {
           {isManager && !memberIds.has(user.id) && (
             <div className="mt-4 pt-3 border-t border-gray-700">
               <button
-                onClick={() => act(() => updateMember.mutateAsync({ teamId: team.id, userId: user.id, patch: { lane_id: null, is_captain: false } }))}
+                onClick={() => act(async () => {
+                  await addTeamMember.mutateAsync({ teamId: team.id, userId: user.id, laneId: null, isCaptain: false });
+                  refetch();
+                })}
                 className="text-sm bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg flex items-center gap-2"
               >
                 <i className="fas fa-user-plus"></i> Add myself as player
@@ -366,6 +376,7 @@ const TeamManage = () => {
           )}
         </div>
 
+        {/* Staff */}
         <div className="rtr-card">
           <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
             <i className="fas fa-chalkboard-user text-indigo-300"></i> Staff
@@ -405,6 +416,7 @@ const TeamManage = () => {
         </div>
       </div>
 
+      {/* Manager-only sections - same as before */}
       {isManager && (
         <>
           <div className="rtr-card">
@@ -506,6 +518,9 @@ const TeamManage = () => {
     </div>
   );
 };
+
+// Helper components (InvitePlayers, AddStaff) remain unchanged from your original.
+// I'll include them here as they were, but you can keep your existing ones.
 
 const InvitePlayers = ({ search, setSearch, excludeIds, invitedIds, managerId, onInvite }) => {
   const { data: people = [] } = useDirectory();
