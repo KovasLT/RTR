@@ -16,7 +16,6 @@ export function useTournaments(userId) {
         placement
       )
       `);
-      // Only filter by created_by if userId is provided
       if (userId) {
         query = query.eq('created_by', userId);
       }
@@ -24,7 +23,7 @@ export function useTournaments(userId) {
       if (error) throw error;
       return data;
     },
-    enabled: true, // always fetch, even without userId
+    enabled: true,
   });
 
   const createTournament = useMutation({
@@ -57,6 +56,7 @@ export function useSingleTournament(tournamentId) {
   const detailsQuery = useQuery({
     queryKey: ['tournament', tournamentId],
     queryFn: async () => {
+      // Get tournament details
       const { data: tournament, error: tErr } = await supabase
       .from('tournaments')
       .select('*')
@@ -64,14 +64,16 @@ export function useSingleTournament(tournamentId) {
       .single();
       if (tErr) throw tErr;
 
+      // Get registered teams
       const { data: teams, error: teamsErr } = await supabase
       .from('tournament_teams')
       .select('*')
       .eq('tournament_id', tournamentId);
       if (teamsErr) throw teamsErr;
 
+      // Get matches from unified `matches` table (where tournament_id = tournamentId)
       const { data: matches, error: mErr } = await supabase
-      .from('tournament_matches')
+      .from('matches')
       .select('*')
       .eq('tournament_id', tournamentId)
       .order('round', { ascending: true })
@@ -85,14 +87,31 @@ export function useSingleTournament(tournamentId) {
 
   const startTournament = useMutation({
     mutationFn: async ({ id, matches }) => {
+      // Update tournament status
       const { error: statusErr } = await supabase
       .from('tournaments')
       .update({ status: 'ongoing' })
       .eq('id', id);
       if (statusErr) throw statusErr;
 
+      // Insert matches into unified `matches` table
       if (matches && matches.length > 0) {
-        const { error: mErr } = await supabase.from('tournament_matches').insert(matches);
+        // Map match data to the unified schema
+        const unifiedMatches = matches.map(m => ({
+          tournament_id: id,
+          round: m.round,
+          match_order: m.match_order,
+          team_a_id: m.team_a_id,
+          team_b_id: m.team_b_id,
+          score_team_a: m.team_a_score || 0,
+          score_team_b: m.team_b_score || 0,
+          winner_id: m.winner_id || null,
+          scheduled_date: m.scheduled_date || new Date().toISOString(),
+                                                 status: m.status || 'scheduled',
+                                                 match_type: 'tournament',
+                                                 match_date: m.scheduled_date ? m.scheduled_date.split('T')[0] : new Date().toISOString().split('T')[0]
+        }));
+        const { error: mErr } = await supabase.from('matches').insert(unifiedMatches);
         if (mErr) throw mErr;
       }
     },
@@ -104,10 +123,10 @@ export function useSingleTournament(tournamentId) {
   const updateMatchNode = useMutation({
     mutationFn: async ({ matchId, teamAScore, teamBScore, winnerId }) => {
       const { error } = await supabase
-      .from('tournament_matches')
+      .from('matches')
       .update({
-        reported_team_a_score: teamAScore,
-        reported_team_b_score: teamBScore,
+        score_team_a: teamAScore,
+        score_team_b: teamBScore,
         winner_id: winnerId,
         status: 'completed'
       })

@@ -3,14 +3,15 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { useAllTeams } from '../hooks/useTeams.js';
 import { useTournaments } from '../hooks/useTournaments.js';
 import { useMatchMutations } from '../hooks/useMatches.js';
+import { supabase } from '../lib/supabase';
 
 export default function ReportMatch() {
   const { user } = useAuth();
-
   const { data: allTeams = [] } = useAllTeams();
-  const { data: existingTournaments = [] } = useTournaments(); // now returns all tournaments
+  const { data: existingTournaments = [] } = useTournaments(); // returns all tournaments
   const { submitMatchReport } = useMatchMutations();
 
+  // Stage options
   const stageOptions = [
     'Scrims',
     'Group stage',
@@ -22,6 +23,7 @@ export default function ReportMatch() {
     'Finals'
   ];
 
+  // Form state
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
     stage: 'Scrims',
@@ -37,8 +39,10 @@ export default function ReportMatch() {
   });
 
   const [useCustomTournament, setUseCustomTournament] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({ type: null, message: '' });
 
+  // Helper: find team ID from typed name (if exists)
   const getTeamIdFromName = (name) => {
     if (!name) return null;
     const team = allTeams.find(t => 
@@ -66,24 +70,34 @@ export default function ReportMatch() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     setStatus({ type: null, message: '' });
 
+    // Validation
     if (!form.teamAInput.trim()) {
-      return setStatus({ type: 'error', message: 'Please enter Team A name.' });
+      setStatus({ type: 'error', message: 'Please enter Team A name.' });
+      setLoading(false);
+      return;
     }
     if (!form.teamBInput.trim()) {
-      return setStatus({ type: 'error', message: 'Please enter Team B name.' });
+      setStatus({ type: 'error', message: 'Please enter Team B name.' });
+      setLoading(false);
+      return;
     }
     if (form.teamAInput.toLowerCase() === form.teamBInput.toLowerCase()) {
-      return setStatus({ type: 'error', message: 'Teams cannot be the same.' });
+      setStatus({ type: 'error', message: 'Teams cannot be the same.' });
+      setLoading(false);
+      return;
     }
 
+    // Resolve team names and tournament
     const teamAName = form.teamAInput.trim();
     const teamBName = form.teamBInput.trim();
     const tournamentName = useCustomTournament
       ? form.customTournamentName.trim()
       : (existingTournaments.find(t => t.id === form.tournamentId)?.title || null);
 
+    // Payload with immediate confirmation
     const payload = {
       reporter_name: user?.display_name || user?.email || 'Anonymous',
       reporter_id: user?.id,
@@ -97,17 +111,39 @@ export default function ReportMatch() {
       match_type: form.format,
       score_team_a: form.scoreA,
       score_team_b: form.scoreB,
-      team_a_rating_before: 1000,
-      team_b_rating_before: 1000,
+      team_a_rating_before: 1200,
+      team_b_rating_before: 1200,
       team_a_rating_after: null,
       team_b_rating_after: null,
-      status: 'pending_confirmation',
+      status: 'confirmed',        // <-- instant confirmation
       match_date: form.date,
     };
 
     try {
-      await submitMatchReport.mutateAsync(payload);
-      setStatus({ type: 'success', message: 'Match reported! Awaiting opponent confirmation.' });
+      const matchResult = await submitMatchReport.mutateAsync(payload);
+      
+      // Send Discord notification (non‑blocking, errors ignored)
+      try {
+        const teamA = allTeams.find(t => t.id === form.teamA_id);
+        const teamB = allTeams.find(t => t.id === form.teamB_id);
+        await supabase.functions.invoke('discord-match-notification', {
+          body: {
+            match_id: matchResult.id,
+            team_a_name: teamA?.name || teamAName,
+            team_b_name: teamB?.name || teamBName,
+            score_a: form.scoreA,
+            score_b: form.scoreB,
+            reporter_name: user?.display_name || user?.email || 'Anonymous'
+          }
+        });
+      } catch (notifyErr) {
+        console.warn('Discord notification failed:', notifyErr);
+        // Do not show error to user
+      }
+
+      setStatus({ type: 'success', message: 'Match reported! Ratings updated. Managers have been notified on Discord.' });
+      
+      // Reset form (keep date, stage, format, tournament settings but clear teams and scores)
       setForm({
         ...form,
         teamAInput: '',
@@ -116,18 +152,19 @@ export default function ReportMatch() {
         teamB_id: '',
         scoreA: 0,
         scoreB: 0,
-        tournamentId: '',
-        customTournamentName: '',
+        tournamentId: useCustomTournament ? form.tournamentId : '',
+        customTournamentName: useCustomTournament ? '' : form.customTournamentName,
       });
-      setUseCustomTournament(false);
     } catch (err) {
       setStatus({ type: 'error', message: err.message || 'Submission failed.' });
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <>
-      {/* Inline style to fix dropdown colors – no external CSS needed */}
+      {/* Inline style to fix dropdown colors */}
       <style>{`
         select, option {
           background-color: #1f2937 !important;
@@ -147,7 +184,7 @@ export default function ReportMatch() {
             <i className="fas fa-futbol text-blue-400"></i> Report Match
           </h2>
           <p className="text-gray-400 text-sm">
-            Submit game results. Ratings update automatically after the opposing manager confirms.
+            Submit game results. Ratings update immediately. Team managers are notified on Discord.
           </p>
         </div>
 
@@ -300,10 +337,10 @@ export default function ReportMatch() {
           <div className="flex justify-end pt-2">
             <button
               type="submit"
-              disabled={submitMatchReport?.isPending}
+              disabled={loading}
               className="text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-8 py-3 transition-colors shadow-md disabled:opacity-50 flex items-center gap-2"
             >
-              {submitMatchReport?.isPending ? (
+              {loading ? (
                 <><i className="fas fa-spinner fa-spin"></i> Submitting...</>
               ) : (
                 <><i className="fas fa-check-circle"></i> Submit Match Result</>
