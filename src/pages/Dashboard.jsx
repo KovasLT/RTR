@@ -17,7 +17,8 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Sparkline from '../components/Sparkline';
 import NewsFeed from '../components/NewsFeed';
 import ReportMatch from '../pages/ReportMatch';
-import TournamentManagerPanel from '../components/TournamentManagerPanel'; // ✅ only one definition
+import TournamentManagerPanel from '../components/TournamentManagerPanel'; 
+import FindScrims from './FindScrims';
 
 const REASON = APP_CONSTANTS.DASHBOARD.RATING_REASONS;
 
@@ -557,12 +558,8 @@ const Dashboard = () => {
 
         {/* 3. Look For Scrims View */}
         {current === 'scrims' && (
-          <div className="rtr-card p-8 text-center">
-            <i className="fa-solid fa-satellite-dish text-4xl text-blue-500 mb-3" />
-            <h3 className="text-xl font-bold text-white">{APP_CONSTANTS.NAV.LOOK_FOR_SCRIMS}</h3>
-            <p className="text-gray-400 mt-2">Scrim finder workspace and active lobby lists arrive here in Phase 2.</p>
-          </div>
-        )}
+  <FindScrims />
+	)}
 
         {/* 4. Fallback Role Panels */}
         {!['overview', 'report-match', 'scrims'].includes(current) && (
