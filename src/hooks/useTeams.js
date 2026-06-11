@@ -177,6 +177,22 @@ export const useMyApplications = (userId) =>
     },
   });
 
+  /** Fetch all teams (for match reporting dropdowns) */
+  export const useAllTeams = () =>
+  useQuery({
+    queryKey: ['teams', 'all'],
+    enabled: Boolean(supabase),
+           queryFn: async () => {
+             const { data, error } = await supabase
+             .from('teams')
+             .select('id, name, tag, status')
+             // No status filter – show all teams (including 'recruiting', 'active', etc.)
+             .order('name');
+             if (error) throw error;
+             return data ?? [];
+           },
+  });
+
 /** Write actions for teams + applications. */
 export const useTeamMutations = () => {
   const qc = useQueryClient();

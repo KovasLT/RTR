@@ -16,6 +16,8 @@ import { APP_CONSTANTS } from '../app-constants';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Sparkline from '../components/Sparkline';
 import NewsFeed from '../components/NewsFeed';
+import ReportMatch from '../pages/ReportMatch';
+import TournamentManagerPanel from '../components/TournamentManagerPanel'; // ✅ only one definition
 
 const REASON = APP_CONSTANTS.DASHBOARD.RATING_REASONS;
 
@@ -72,7 +74,6 @@ const PlayerPanel = ({ profile, rating, userId }) => {
   const { setLookingForTeam } = usePlayerMutations();
   const heroPool = Array.isArray(p?.hero_pool) ? p.hero_pool : [];
 
-  // Recruiting teams I'm not already on or applied to; same-region first.
   const myTeamIds = new Set(teams.map((t) => t.teamId));
   const appliedIds = new Set(apps.filter((a) => a.status === 'pending').map((a) => a.team_id));
   const myRegionId = profile?.region?.id ?? null;
@@ -131,7 +132,6 @@ const PlayerPanel = ({ profile, rating, userId }) => {
         </div>
       </div>
 
-      {/* Rating history */}
       <div className="rtr-card">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold text-white">{D.PLAYER_RATING_HISTORY}</h3>
@@ -149,7 +149,6 @@ const PlayerPanel = ({ profile, rating, userId }) => {
         )}
       </div>
 
-      {/* My teams */}
       <div className="rtr-card">
         <h3 className="text-lg font-semibold text-white mb-3">{D.PLAYER_TEAMS_TITLE}</h3>
         {teams.length === 0 ? (
@@ -192,103 +191,6 @@ const PlayerPanel = ({ profile, rating, userId }) => {
         )}
       </div>
 
-      {/* Recommended teams */}
-      <div className="rtr-card">
-        <h3 className="text-lg font-semibold text-white mb-2">{D.PLAYER_RECOMMENDED_TITLE}</h3>
-        {recommended.length === 0 ? (
-          <p className="text-sm text-gray-400">{D.PLAYER_RECOMMENDED_EMPTY}</p>
-        ) : (
-          <div className="space-y-2">
-            {recommended.map((t) => (
-              <div key={t.id} className="flex flex-wrap items-center gap-3 border-b border-gray-800 pb-2 last:border-0">
-                <div className="flex-grow min-w-0">
-                  <Link to={`/team/${t.id}`} className="text-white font-medium hover:underline">{t.name}</Link>
-                  {t.tag && <span className="text-gray-500 text-sm ml-2">[{t.tag}]</span>}
-                  {t.note && <div className="text-xs text-gray-500 truncate">{t.note}</div>}
-                </div>
-                {t.regionCode && (
-                  <span className="bg-slate-800 text-slate-300 border border-slate-700/60 text-[10px] px-2 py-0.5 rounded font-bold tracking-wider">{t.regionCode}</span>
-                )}
-                <button
-                  onClick={() => applyToTeam.mutate({ teamId: t.id, applicantId: userId })}
-                  className="text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded px-3 py-1"
-                >
-                  {D.PLAYER_APPLY}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Scouts watching me */}
-      <div className="rtr-card">
-        <h3 className="text-lg font-semibold text-white mb-2">{D.PLAYER_WATCHERS_TITLE}</h3>
-        {watchers.length === 0 ? (
-          <p className="text-sm text-gray-400">{D.PLAYER_WATCHERS_EMPTY}</p>
-        ) : (
-          <div className="space-y-2">
-            {watchers.map((w) => (
-              <Link
-                key={w.id}
-                to={`/profile/${w.scout?.id}`}
-                className="flex items-center gap-3 text-sm border-b border-gray-800 pb-2 last:border-0 hover:underline"
-              >
-                <i className="fas fa-binoculars text-indigo-300"></i>
-                <span className="text-white">{w.scout?.display_name || w.scout?.handle || 'Scout'}</span>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Applications & invites */}
-      <div className="rtr-card">
-        <h3 className="text-lg font-semibold text-white mb-2">{D.PLAYER_APPS_TITLE}</h3>
-        {apps.length === 0 ? (
-          <p className="text-sm text-gray-400">{D.PLAYER_APPS_EMPTY}</p>
-        ) : (
-          <div className="space-y-2">
-            {apps.map((a) => (
-              <div key={a.id} className="flex flex-wrap items-center gap-3 text-sm border-b border-gray-800 pb-2 last:border-0">
-                <span className="text-white font-medium flex-grow">{a.team?.name || '—'}</span>
-                <span className="text-[11px] uppercase tracking-wide text-gray-500">
-                  {a.type === 'invite' ? D.APP_INVITE : D.APP_SENT}
-                </span>
-                {a.status === 'pending' ? (
-                  a.type === 'invite' ? (
-                    <>
-                      <button
-                        onClick={() => respondToApplication.mutate({ appId: a.id, accept: true })}
-                        className="text-xs font-semibold bg-green-900/30 border border-green-700/50 text-green-300 rounded px-3 py-1 hover:bg-green-900/50"
-                      >
-                        {D.APP_ACCEPT}
-                      </button>
-                      <button
-                        onClick={() => respondToApplication.mutate({ appId: a.id, accept: false })}
-                        className="text-xs font-semibold bg-gray-800 border border-gray-600 text-gray-300 rounded px-3 py-1 hover:border-gray-500"
-                      >
-                        {D.APP_DECLINE}
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => withdrawApplication.mutate({ appId: a.id })}
-                      className="text-xs font-semibold bg-gray-800 border border-gray-600 text-gray-300 rounded px-3 py-1 hover:border-gray-500"
-                    >
-                      {D.APP_WITHDRAW}
-                    </button>
-                  )
-                ) : (
-                  <span className="text-xs text-gray-500">{a.status}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Recent activity */}
       <ActivityCard events={history} />
     </div>
   );
@@ -310,7 +212,8 @@ const TeamManagerPanel = ({ rating, userId }) => {
       const team = await createTeam.mutateAsync({ managerId: userId, name: form.name, tag: form.tag });
       navigate(`/team/${team.id}`);
     } catch (err) {
-      setError(err.message || APP_CONSTANTS.TEAM_MGMT.ERROR);
+      console.error("Database submission failed:", err); 
+      setError(err?.message || APP_CONSTANTS.TEAM_MGMT.ERROR || "An unexpected error occurred while creating the team.");
     }
   };
 
@@ -421,7 +324,6 @@ const ScoutPanel = ({ rating, userId }) => {
   );
 };
 
-/** Search the directory for players to add to the scout's watchlist. */
 const ScoutAddPlayer = ({ scoutId, existingIds }) => {
   const { data: people = [] } = useDirectory();
   const { watch } = useScoutMutations();
@@ -465,7 +367,6 @@ const ScoutAddPlayer = ({ scoutId, existingIds }) => {
   );
 };
 
-/** Coach panel: profile summary, teams coached, endorsements + activity. */
 const CoachPanel = ({ profile, rating, userId }) => {
   const c = profile?.coach;
   const { data: teams = [] } = useMyStaffTeams(userId, 'coach');
@@ -502,34 +403,11 @@ const CoachPanel = ({ profile, rating, userId }) => {
           </div>
         </div>
       </div>
-
-      <div className="rtr-card">
-        <h3 className="text-lg font-semibold text-white mb-3">{D.COACH_TEAMS_TITLE}</h3>
-        {teams.length === 0 ? (
-          <p className="text-sm text-gray-400">{D.COACH_TEAMS_EMPTY}</p>
-        ) : (
-          <div className="space-y-2">
-            {teams.map((t) => (
-              <div key={t.teamId} className="flex flex-wrap items-center gap-3 border-b border-gray-800 pb-2 last:border-0">
-                <Link to={`/team/${t.teamId}`} className="text-white font-medium hover:underline flex-grow">
-                  {t.name}{t.tag && <span className="text-gray-500 text-sm ml-2">[{t.tag}]</span>}
-                </Link>
-                {t.regionCode && (
-                  <span className="bg-slate-800 text-slate-300 border border-slate-700/60 text-[10px] px-2 py-0.5 rounded font-bold tracking-wider">{t.regionCode}</span>
-                )}
-                <span className="text-xs text-gray-500">{APP_CONSTANTS.TEAMS.STATUS[t.status] || t.status}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       <ActivityCard events={history} />
     </div>
   );
 };
 
-/** Scaffold panel for roles not yet built out. */
 const ScaffoldPanel = ({ title, body, soon, rating, icon }) => (
   <div className="rtr-card">
     <div className="flex items-center justify-between mb-2">
@@ -544,7 +422,6 @@ const ScaffoldPanel = ({ title, body, soon, rating, icon }) => (
   </div>
 );
 
-/** Dispatches to the right panel for one of the user's roles. */
 const RolePanel = ({ role, profile, userId }) => {
   const rating = profile?.ratings?.find((r) => r.subject_type === role)?.rating;
 
@@ -552,20 +429,11 @@ const RolePanel = ({ role, profile, userId }) => {
   if (role === 'team_manager') return <TeamManagerPanel rating={rating} userId={userId} />;
   if (role === 'scout') return <ScoutPanel rating={rating} userId={userId} />;
   if (role === 'coach') return <CoachPanel profile={profile} rating={rating} userId={userId} />;
+  if (role === 'tournament_manager') return <TournamentManagerPanel rating={rating} userId={userId} />;
 
-  const map = {
-    tournament_manager: {
-      title: D.TOURNAMENT_MANAGER_TITLE,
-      body: D.TOURNAMENT_MANAGER_BODY,
-      soon: D.TOURNAMENT_MANAGER_SOON,
-    },
-  };
-  const m = map[role];
-  if (!m) return null;
-  return <ScaffoldPanel {...m} rating={rating} icon={APP_CONSTANTS.ROLE_ICONS[role]} />;
+  return null;
 };
 
-/** One row in the left dashboard rail. Renders a Link or a toggle button. */
 const NavItem = ({ icon, label, active, accent, badge = 0, onClick, to }) => {
   const base =
     'relative flex items-center gap-3 w-full h-11 rounded-xl px-3 transition-colors justify-center sm:justify-start';
@@ -593,11 +461,6 @@ const NavItem = ({ icon, label, active, accent, badge = 0, onClick, to }) => {
   );
 };
 
-/**
- * Role-aware dashboard. A left icon rail lists the sections relevant to the
- * user (Overview + each of their roles); admins can preview every role. The
- * Admin and Edit-profile shortcuts link out.
- */
 const Dashboard = () => {
   const { user, roles, isAuthenticated, isLoading } = useAuth();
   const { data: profile } = useProfile(user?.id);
@@ -609,15 +472,21 @@ const Dashboard = () => {
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   const isAdmin = user?.isAdmin;
-  // Regular users only see their own roles; admins may preview any role.
   const navRoles = isAdmin ? ALL_ROLES : roles;
-  // Notification badges: actionable invites (player) + pending applications (manager).
   const inviteCount = myApps.filter((a) => a.status === 'pending' && a.type === 'invite').length;
   const managerPending = myManagedTeams.reduce((n, t) => n + (t.pendingCount || 0), 0);
   const badgeFor = (r) => (r === 'player' ? inviteCount : r === 'team_manager' ? managerPending : 0);
-  // Guard against an active role that's no longer available.
-  const current = active !== 'overview' && navRoles.includes(active) ? active : 'overview';
-  const sectionTitle = current === 'overview' ? D.OVERVIEW : APP_CONSTANTS.ROLES[current];
+  const isCustomAction = ['report-match', 'scrims'].includes(active);
+  const current = (active === 'overview' || isCustomAction || navRoles.includes(active)) ? active : 'overview';
+
+  const sectionTitle = current === 'overview' 
+    ? D.OVERVIEW 
+    : current === 'report-match'
+      ? 'Report Match'
+      : current === 'scrims'
+        ? 'Find Scrims'
+        : APP_CONSTANTS.ROLES[current];
+
   const shownRoles = current === 'overview' ? roles : [current];
 
   return (
@@ -639,15 +508,41 @@ const Dashboard = () => {
         <div className="my-1 h-px w-full bg-gray-800" />
         {isAdmin && <NavItem icon="fa-shield-halved" label={APP_CONSTANTS.NAV.ADMIN} accent to="/admin" />}
         <NavItem icon="fa-user-pen" label={D.EDIT_PROFILE} to="/profile/edit" />
+
+        <div className="my-2 h-px w-full bg-gray-800/60" />
+        
+        <span className="hidden sm:block text-[10px] font-bold text-gray-500 uppercase tracking-wider self-start px-3 my-1">
+          {APP_CONSTANTS.NAV.QUICK_ACTIONS_TITLE}
+        </span>
+
+        <NavItem 
+          icon="fa-khanda" 
+          label={APP_CONSTANTS.NAV.REPORT_MATCH} 
+          active={current === 'report-match'}
+          onClick={() => setActive('report-match')} 
+        />
+        
+        <NavItem 
+          icon="fa-satellite-dish" 
+          label={APP_CONSTANTS.NAV.LOOK_FOR_SCRIMS} 
+          active={current === 'scrims'}
+          onClick={() => setActive('scrims')} 
+        />
       </nav>
 
       {/* Content */}
       <div className="flex-grow min-w-0 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-1">{D.TITLE}</h1>
-          <p className="text-gray-400">{sectionTitle}</p>
+        
+        <div className="mb-2">
+          <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">
+            {D.TITLE} {current !== 'overview' && <span className="mx-2">/</span>} {current !== 'overview' && sectionTitle}
+          </div>
+          {current === 'overview' && (
+            <h2 className="text-3xl font-bold text-white">{sectionTitle}</h2>
+          )}
         </div>
 
+        {/* 1. Overview Tab */}
         {current === 'overview' && (
           <div className="rtr-card">
             <h3 className="text-lg font-semibold text-white mb-3">{APP_CONSTANTS.NEWS.FEED_TITLE}</h3>
@@ -655,18 +550,35 @@ const Dashboard = () => {
           </div>
         )}
 
-        {shownRoles.length === 0 ? (
-          <div className="rtr-card text-center py-10">
-            <h3 className="text-lg font-semibold text-white">{D.NO_ROLES_TITLE}</h3>
-            <p className="text-gray-400 mt-1 mb-4">{D.NO_ROLES_BODY}</p>
-            <Link to="/onboarding" className="rtr-btn-primary">{D.SET_UP_PROFILE}</Link>
+        {/* 2. Report Match View */}
+        {current === 'report-match' && (
+          <ReportMatch userTeamId={profile?.team_id || profile?.managed_team_id || profile?.player?.team_id} />
+        )}
+
+        {/* 3. Look For Scrims View */}
+        {current === 'scrims' && (
+          <div className="rtr-card p-8 text-center">
+            <i className="fa-solid fa-satellite-dish text-4xl text-blue-500 mb-3" />
+            <h3 className="text-xl font-bold text-white">{APP_CONSTANTS.NAV.LOOK_FOR_SCRIMS}</h3>
+            <p className="text-gray-400 mt-2">Scrim finder workspace and active lobby lists arrive here in Phase 2.</p>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {shownRoles.map((role) => (
-              <RolePanel key={role} role={role} profile={profile} userId={user?.id} />
-            ))}
-          </div>
+        )}
+
+        {/* 4. Fallback Role Panels */}
+        {!['overview', 'report-match', 'scrims'].includes(current) && (
+          shownRoles.length === 0 ? (
+            <div className="rtr-card text-center py-10">
+              <h3 className="text-lg font-semibold text-white">{D.NO_ROLES_TITLE}</h3>
+              <p className="text-gray-400 mt-1 mb-4">{D.NO_ROLES_BODY}</p>
+              <Link to="/onboarding" className="rtr-btn-primary">{D.SET_UP_PROFILE}</Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {shownRoles.map((role) => (
+                <RolePanel key={role} role={role} profile={profile} userId={user?.id} />
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>

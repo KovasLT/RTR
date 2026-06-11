@@ -43,6 +43,11 @@ export const APP_CONSTANTS = {
     DASHBOARD: 'Dashboard', // Role dashboard link
     ADMIN: 'Admin', // Admin dashboard link (admins only)
     MENU: 'Menu', // Mobile menu toggle label
+
+// --- NEW ADDITIONS FOR DASHBOARD SIDEBAR ---
+    QUICK_ACTIONS_TITLE: 'Match Actions',
+    REPORT_MATCH: 'Report Match',
+    LOOK_FOR_SCRIMS: 'Look for Scrims',
   },
 
   // ========================================
