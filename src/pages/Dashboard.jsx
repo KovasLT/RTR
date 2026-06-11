@@ -508,13 +508,13 @@ const Dashboard = () => {
         ))}
         <div className="my-1 h-px w-full bg-gray-800" />
         {isAdmin && <NavItem icon="fa-shield-halved" label={APP_CONSTANTS.NAV.ADMIN} accent to="/admin" />}
-        <NavItem icon="fa-user-pen" label={D.EDIT_PROFILE} to="/profile/edit" />
-
+        {/* <NavItem icon="fa-user-pen" label={D.EDIT_PROFILE} to="/profile/edit" /> */}
         <div className="my-2 h-px w-full bg-gray-800/60" />
         
         <span className="hidden sm:block text-[10px] font-bold text-gray-500 uppercase tracking-wider self-start px-3 my-1">
           {APP_CONSTANTS.NAV.QUICK_ACTIONS_TITLE}
         </span>
+	<NavItem icon="fa-trophy" label="Tournaments" to="/tournaments" />
 
         <NavItem 
           icon="fa-khanda" 

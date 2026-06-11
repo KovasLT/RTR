@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import LoadingSpinner from './components/LoadingSpinner';
+import TournamentsPage from './pages/TournamentsPage';
 
 // Lazy load pages for code splitting
 const Home = lazy(() => import('./pages/Home'));
@@ -56,6 +57,7 @@ function App() {
                   <Route path="/profile" element={<ProfileView />} />
                   <Route path="/profile/:id" element={<ProfileView />} />
                   <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/tournaments" element={<TournamentsPage />} />
                   <Route path="/team/:id" element={<TeamManage />} />
                   <Route path="/admin" element={<AdminDashboard />} />
                   <Route path="/auth/discord/callback" element={<DiscordCallback />} />
