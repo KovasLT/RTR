@@ -25,7 +25,7 @@ useQuery({
            const { data, error } = await supabase
            .from('teams')
            .select(
-             'id, name, tag, logo_url, status, region:regions(code,name), members:team_members(user_id), applications(id,status)',
+             'id, name, tag, logo_url, status, region:regions(code,name), members:team_members(user_id), applications(id,status)', 'country_code',
            )
            .eq('manager_id', managerId)
            .order('created_at', { ascending: true });
