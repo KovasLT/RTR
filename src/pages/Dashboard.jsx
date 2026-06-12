@@ -15,10 +15,14 @@ import { useEndorsements } from '../hooks/useEndorsements.js';
 import { APP_CONSTANTS } from '../app-constants';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Sparkline from '../components/Sparkline';
-import NewsFeed from '../components/NewsFeed';
 import ReportMatch from '../pages/ReportMatch';
 import TournamentManagerPanel from '../components/TournamentManagerPanel'; 
 import FindScrims from './FindScrims';
+import RecentMatches from '../components/RecentMatches';
+import RecentSignings from '../components/RecentSignings';
+import RecentScrims from '../components/RecentScrims';
+import RecentPlacements from '../components/RecentPlacements';
+import NewsFeed from '../components/NewsFeed';
 
 const REASON = APP_CONSTANTS.DASHBOARD.RATING_REASONS;
 
@@ -545,9 +549,30 @@ const Dashboard = () => {
 
         {/* 1. Overview Tab */}
         {current === 'overview' && (
-          <div className="rtr-card">
-            <h3 className="text-lg font-semibold text-white mb-3">{APP_CONSTANTS.NEWS.FEED_TITLE}</h3>
-            <NewsFeed limit={4} compact showViewAll />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left column */}
+            <div className="space-y-6">
+	      <div className="rtr-card">
+                <h3 className="text-lg font-semibold text-white mb-3">⚔️ Recent Matches</h3>
+                <RecentMatches limit={3} />
+              </div>
+              <div className="rtr-card">
+                <h3 className="text-lg font-semibold text-white mb-3">🏆 Recent Tournament Placements</h3>
+                <RecentPlacements limit={10} />
+              </div>
+            </div>
+
+            {/* Right column */}
+            <div className="space-y-6">
+              <div className="rtr-card">
+                <h3 className="text-lg font-semibold text-white mb-3">🔍 Looking for Scrims</h3>
+                <RecentScrims limit={3} />
+              </div>
+              <div className="rtr-card">
+                <h3 className="text-lg font-semibold text-white mb-3">➕ Recent Signings</h3>
+                <RecentSignings limit={10} />
+              </div>
+            </div>
           </div>
         )}
 
