@@ -2,119 +2,291 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
 
 const unwrap = (promise) =>
-  promise.then((r) => {
-    if (r.error) throw r.error;
-    return r.data;
+promise.then((r) => {
+  if (r.error) throw r.error;
+  return r.data;
+});
+
+// Helper: fetch user roles for a list of user IDs
+const fetchRolesForUsers = async (userIds) => {
+  if (!userIds.length) return new Map();
+  const { data } = await supabase
+  .from('user_roles')
+  .select('user_id, role')
+  .in('user_id', userIds);
+  const map = new Map();
+  data?.forEach(row => {
+    if (!map.has(row.user_id)) map.set(row.user_id, []);
+    map.get(row.user_id).push(row.role);
   });
+  return map;
+};
+
+// Helper: fetch player profiles for a list of user IDs
+const fetchPlayerProfiles = async (userIds) => {
+  if (!userIds.length) return new Map();
+  const { data } = await supabase
+  .from('player_profiles')
+  .select('*')
+  .in('user_id', userIds);
+  const map = new Map();
+  data?.forEach(p => map.set(p.user_id, p));
+  return map;
+};
+
+// Helper: fetch lane names for lane IDs
+const fetchLanes = async (laneIds) => {
+  if (!laneIds.length) return new Map();
+  const { data } = await supabase
+  .from('lanes')
+  .select('id, name')
+  .in('id', laneIds);
+  const map = new Map();
+  data?.forEach(l => map.set(l.id, l));
+  return map;
+};
+
+// Helper: fetch rank names for rank IDs
+const fetchRanks = async (rankIds) => {
+  if (!rankIds.length) return new Map();
+  const { data } = await supabase
+  .from('ranks')
+  .select('id, name')
+  .in('id', rankIds);
+  const map = new Map();
+  data?.forEach(r => map.set(r.id, r));
+  return map;
+};
 
 /**
- * Shared select for a profile + its roles and role-specific detail rows.
+ * Browseable directory of everyone with a profile.
  */
-const PROFILE_SELECT = `
-  id, handle, display_name, avatar_url, bio, country_iso, created_at,
-  region:regions ( id, code, name ),
-  roles:user_roles ( role ),
-  player:player_profiles (
-    lane_id, rank_id, server, looking_for_team, availability, hero_pool,
-    lane:lanes ( id, name ),
-    rank:ranks ( id, name )
-  ),
-  coach:coach_profiles ( specialties, experience_years, availability ),
-  scout:scout_profiles ( org, regions ),
-  tournament_manager:tournament_manager_profiles ( org ),
-  team_manager:team_manager_profiles ( user_id )
-`;
+export const useDirectory = () =>
+useQuery({
+  queryKey: ['directory'],
+  queryFn: async () => {
+    if (!supabase) return [];
 
-const normalizeRoles = (row) => ({
-  ...row,
-  roles: (row.roles ?? []).map((r) => r.role),
+    // 1. Get all profiles
+    const { data: profiles, error } = await supabase
+    .from('profiles')
+    .select('id, handle, display_name, avatar_url, bio, country_iso, created_at, region_id');
+    if (error) throw error;
+    if (!profiles.length) return [];
+
+    const userIds = profiles.map(p => p.id);
+
+    // 2. Fetch roles for all users
+    const rolesMap = await fetchRolesForUsers(userIds);
+
+    // 3. Fetch player profiles
+    const playerProfilesMap = await fetchPlayerProfiles(userIds);
+
+    // 4. Fetch region names (for those with region_id)
+    const regionIds = [...new Set(profiles.map(p => p.region_id).filter(Boolean))];
+    const { data: regions } = await supabase
+    .from('regions')
+    .select('id, code, name')
+    .in('id', regionIds);
+    const regionMap = new Map(regions?.map(r => [r.id, r]) || []);
+
+    // 5. Fetch lane names for player profiles that have lane_id
+    const laneIds = [...new Set(Object.values(playerProfilesMap).map(p => p.lane_id).filter(Boolean))];
+    const laneMap = await fetchLanes(laneIds);
+
+    // 6. Fetch rank names
+    const rankIds = [...new Set(Object.values(playerProfilesMap).map(p => p.rank_id).filter(Boolean))];
+    const rankMap = await fetchRanks(rankIds);
+
+    // 7. Fetch player ratings
+    const { data: ratings } = await supabase
+    .from('ratings')
+    .select('subject_id, rating')
+    .eq('subject_type', 'player')
+    .in('subject_id', userIds);
+    const ratingMap = new Map(ratings?.map(r => [r.subject_id, r.rating]) || []);
+
+    // Build final array
+    return profiles.map(prof => {
+      const roles = rolesMap.get(prof.id) || [];
+      const playerProf = playerProfilesMap.get(prof.id);
+      const region = regionMap.get(prof.region_id);
+      return {
+        id: prof.id,
+        handle: prof.handle,
+        display_name: prof.display_name,
+        avatar_url: prof.avatar_url,
+        bio: prof.bio,
+        country_iso: prof.country_iso,
+        created_at: prof.created_at,
+        region,
+        roles,
+        player: playerProf ? {
+          lane: laneMap.get(playerProf.lane_id) || null,
+                        rank: rankMap.get(playerProf.rank_id) || null,
+                        server: playerProf.server,
+                        looking_for_team: playerProf.looking_for_team,
+                        availability: playerProf.availability,
+                        hero_pool: playerProf.hero_pool || [],
+        } : null,
+        playerRating: ratingMap.get(prof.id) || null,
+      };
+    });
+  },
 });
 
 /**
- * Browseable directory of everyone with a profile. Player ratings are attached
- * for display. Filtering is done client-side by the Directory page.
- */
-export const useDirectory = () =>
-  useQuery({
-    queryKey: ['directory'],
-    queryFn: async () => {
-      if (!supabase) return [];
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(PROFILE_SELECT)
-        .order('display_name', { ascending: true });
-      if (error) throw error;
-
-      const people = (data ?? []).map(normalizeRoles);
-
-      // Attach each person's player rating (subject_type = 'player').
-      const { data: ratings } = await supabase
-        .from('ratings')
-        .select('subject_id, rating')
-        .eq('subject_type', 'player');
-      const byId = new Map((ratings ?? []).map((r) => [r.subject_id, r.rating]));
-
-      return people.map((p) => ({ ...p, playerRating: byId.get(p.id) ?? null }));
-    },
-  });
-
-/**
- * A single profile by id, including all of its ratings (one per role).
+ * A single profile by id.
  */
 export const useProfile = (id) =>
-  useQuery({
-    queryKey: ['profile', id],
-    enabled: Boolean(id) && Boolean(supabase),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(PROFILE_SELECT)
-        .eq('id', id)
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) return null;
+useQuery({
+  queryKey: ['profile', id],
+  enabled: Boolean(id) && Boolean(supabase),
+         queryFn: async () => {
+           // 1. Get profile
+           const { data: profile, error } = await supabase
+           .from('profiles')
+           .select('id, handle, display_name, avatar_url, bio, country_iso, created_at, region_id')
+           .eq('id', id)
+           .maybeSingle();
+           if (error) throw error;
+           if (!profile) return null;
 
-      const { data: ratings } = await supabase
-        .from('ratings')
-        .select('subject_type, rating, games_count')
-        .eq('subject_id', id);
+           // 2. Get roles
+           const rolesMap = await fetchRolesForUsers([id]);
+           const roles = rolesMap.get(id) || [];
 
-      return { ...normalizeRoles(data), ratings: ratings ?? [] };
-    },
-  });
+           // 3. Get region
+           let region = null;
+           if (profile.region_id) {
+             const { data: regionData } = await supabase
+             .from('regions')
+             .select('id, code, name')
+             .eq('id', profile.region_id)
+             .single();
+             region = regionData;
+           }
+
+           // 4. Get player profile (if exists)
+           const playerProfilesMap = await fetchPlayerProfiles([id]);
+           const playerProf = playerProfilesMap.get(id);
+           let player = null;
+           if (playerProf) {
+             const laneMap = await fetchLanes([playerProf.lane_id].filter(Boolean));
+             const rankMap = await fetchRanks([playerProf.rank_id].filter(Boolean));
+             player = {
+               lane: laneMap.get(playerProf.lane_id) || null,
+         rank: rankMap.get(playerProf.rank_id) || null,
+         server: playerProf.server,
+         looking_for_team: playerProf.looking_for_team,
+         availability: playerProf.availability,
+         hero_pool: playerProf.hero_pool || [],
+             };
+           }
+
+           // 5. Get ratings for all roles (team, player, coach, etc.)
+           const { data: ratings } = await supabase
+           .from('ratings')
+           .select('subject_type, rating, games_count')
+           .eq('subject_id', id);
+
+           // 6. Get coach profile (if coach role)
+           let coach = null;
+           if (roles.includes('coach')) {
+             const { data: coachData } = await supabase
+             .from('coach_profiles')
+             .select('specialties, experience_years, availability')
+             .eq('user_id', id)
+             .maybeSingle();
+             coach = coachData;
+           }
+
+           // 7. Get scout profile
+           let scout = null;
+           if (roles.includes('scout')) {
+             const { data: scoutData } = await supabase
+             .from('scout_profiles')
+             .select('org, regions')
+             .eq('user_id', id)
+             .maybeSingle();
+             scout = scoutData;
+           }
+
+           // 8. Get tournament manager profile
+           let tournamentManager = null;
+           if (roles.includes('tournament_manager')) {
+             const { data: tmData } = await supabase
+             .from('tournament_manager_profiles')
+             .select('org')
+             .eq('user_id', id)
+             .maybeSingle();
+             tournamentManager = tmData;
+           }
+
+           // 9. Get team manager profile (just exists)
+           let teamManager = null;
+           if (roles.includes('team_manager')) {
+             const { data: tmData } = await supabase
+             .from('team_manager_profiles')
+             .select('user_id')
+             .eq('user_id', id)
+             .maybeSingle();
+             teamManager = tmData;
+           }
+
+           return {
+             id: profile.id,
+             handle: profile.handle,
+             display_name: profile.display_name,
+             avatar_url: profile.avatar_url,
+             bio: profile.bio,
+             country_iso: profile.country_iso,
+             created_at: profile.created_at,
+             region,
+             roles,
+             player,
+             coach,
+             scout,
+             tournament_manager: tournamentManager,
+             team_manager: teamManager,
+             ratings: ratings || [],
+           };
+         },
+});
 
 /**
- * Full rating history for a subject (oldest → newest), from the ledger.
+ * Full rating history for a subject (oldest → newest).
  */
 export const useRatingHistory = (subjectType, subjectId) =>
-  useQuery({
-    queryKey: ['rating_history', subjectType, subjectId],
-    enabled: Boolean(supabase) && Boolean(subjectType) && Boolean(subjectId),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('rating_events')
-        .select('new_rating, delta, reason, created_at')
-        .eq('subject_type', subjectType)
-        .eq('subject_id', subjectId)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+useQuery({
+  queryKey: ['rating_history', subjectType, subjectId],
+  enabled: Boolean(supabase) && Boolean(subjectType) && Boolean(subjectId),
+         queryFn: async () => {
+           const { data, error } = await supabase
+           .from('rating_events')
+           .select('new_rating, delta, reason, created_at')
+           .eq('subject_type', subjectType)
+           .eq('subject_id', subjectId)
+           .order('created_at', { ascending: true });
+           if (error) throw error;
+           return data ?? [];
+         },
+});
 
-/** Owner-only edits to the current user's player profile. */
+/**
+ * Owner-only edits to the current user's player profile.
+ */
 export const usePlayerMutations = () => {
   const qc = useQueryClient();
 
   const setLookingForTeam = useMutation({
     mutationFn: ({ userId, value }) =>
-      unwrap(
-        supabase
-          .from('player_profiles')
-          .update({ looking_for_team: value, updated_at: new Date().toISOString() })
-          .eq('user_id', userId),
-      ),
+    unwrap(
+      supabase
+      .from('player_profiles')
+      .update({ looking_for_team: value, updated_at: new Date().toISOString() })
+      .eq('user_id', userId),
+    ),
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ['profile', vars.userId] });
       qc.invalidateQueries({ queryKey: ['directory'] });
