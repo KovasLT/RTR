@@ -49,15 +49,27 @@ const TeamManage = () => {
   const [ratingHistory, setRatingHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [teamRank, setTeamRank] = useState(null);
 
   const [form, setForm] = useState(null);
   const [error, setError] = useState(null);
+
+  // Fetch team rank (global position)
+  const fetchTeamRank = async () => {
+    if (!team) return;
+    const { count, error } = await supabase
+      .from('teams')
+      .select('*', { count: 'exact', head: true })
+      .gt('rating', team.rating ?? 1200);
+    if (!error) setTeamRank((count || 0) + 1);
+  };
 
   useEffect(() => {
     if (!team) return;
     const fetchTeamStats = async () => {
       setLoadingExtra(true);
       try {
+        // Recent matches (only 3)
         const { data: matches } = await supabase
           .from('matches')
           .select(`
@@ -74,6 +86,7 @@ const TeamManage = () => {
           .limit(3);
         setRecentMatches(matches || []);
 
+        // Tournament placements
         const { data: placements } = await supabase
           .from('tournament_teams')
           .select(`
@@ -85,6 +98,7 @@ const TeamManage = () => {
           .order('placement', { ascending: true });
         setTournamentPlacements(placements || []);
 
+        // Win rate from all matches
         const { data: allMatches } = await supabase
           .from('matches')
           .select('score_team_a, score_team_b, team_a_id, team_b_id')
@@ -101,6 +115,7 @@ const TeamManage = () => {
           setWinRate(Math.round((wins / allMatches.length) * 100));
         } else setWinRate(null);
 
+        // Average player rating
         if (team.members && team.members.length) {
           const memberIds = team.members.map(m => m.user_id);
           const { data: ratings } = await supabase
@@ -113,6 +128,9 @@ const TeamManage = () => {
             setAvgPlayerRating(Math.round(sum / ratings.length));
           } else setAvgPlayerRating(null);
         } else setAvgPlayerRating(null);
+
+        // Rank
+        await fetchTeamRank();
       } catch (err) {
         console.error(err);
       } finally {
@@ -122,6 +140,7 @@ const TeamManage = () => {
     fetchTeamStats();
   }, [team]);
 
+  // Fetch rating history
   useEffect(() => {
     if (!team) return;
     const fetchRatingHistory = async () => {
@@ -139,6 +158,7 @@ const TeamManage = () => {
     fetchRatingHistory();
   }, [team]);
 
+  // Initialize form when team loads
   useEffect(() => {
     if (!team) return;
     let active = true;
@@ -151,7 +171,6 @@ const TeamManage = () => {
         regionId: team.region?.id ? String(team.region.id) : '',
         status: team.status || 'recruiting',
         recruitmentNote: team.recruitment_note || '',
-        countryCode: team.country_code || '',
       });
     })();
     return () => { active = false; };
@@ -178,6 +197,7 @@ const TeamManage = () => {
     try {
       await fn();
       refetch();
+      if (team) await fetchTeamRank(); // update rank after changes
     } catch (err) {
       setError(err.message || T.ERROR);
     }
@@ -195,29 +215,15 @@ const TeamManage = () => {
           region_id: form.regionId ? Number(form.regionId) : null,
           status: form.status,
           recruitment_note: form.recruitmentNote || null,
-          country_code: form.countryCode || null,
         },
       })
     );
     setShowSettings(false);
   };
 
-  const renderCountry = (code) => {
-    if (!code) return null;
-    if (code === 'EU') return <span className="text-sm">🇪🇺</span>;
-    if (code === 'CIS') return <span className="text-sm">🤝</span>;
-    return (
-      <img
-        src={`https://flagcdn.com/${code.toLowerCase()}.svg`}
-        className="w-3.5 h-2.5 rounded-sm shadow-sm inline mr-0.5"
-        alt={code}
-      />
-    );
-  };
-
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
-      {/* Header */}
+      {/* Header with logo, name, region, motto, status, rank (no rating duplicate) */}
       <div className="rtr-card flex flex-wrap gap-4 items-start">
         <div className="flex items-center gap-4">
           {team.logo_url ? (
@@ -231,16 +237,7 @@ const TeamManage = () => {
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-bold text-white">{team.name}</h1>
               {team.tag && <span className="text-gray-500 text-lg">[{team.tag}]</span>}
-              <span className="bg-gray-800 text-gray-300 text-[10px] px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                {team.country_code ? (
-                  <>
-                    {renderCountry(team.country_code)}
-                    <span className="ml-0.5">{team.country_code}</span>
-                    <span className="mx-0.5">•</span>
-                  </>
-                ) : (
-                  <i className="fas fa-globe text-[10px] mr-0.5"></i>
-                )}
+              <span className="bg-gray-800 text-gray-300 text-[10px] px-2 py-0.5 rounded-full">
                 {team.region?.code || '?'}
               </span>
             </div>
@@ -249,7 +246,9 @@ const TeamManage = () => {
             )}
             <div className="flex flex-wrap gap-3 mt-2 text-xs">
               <span className="text-gray-400">{APP_CONSTANTS.TEAMS.STATUS[team.status] || team.status}</span>
-              <span className="text-indigo-300 font-mono font-bold">Rating: {team.rating ?? 1200}</span>
+              {teamRank !== null && (
+                <span className="text-amber-400 font-mono font-bold">Rank: #{teamRank}</span>
+              )}
             </div>
           </div>
         </div>
@@ -281,7 +280,7 @@ const TeamManage = () => {
         </div>
       </div>
 
-      {/* Stats row */}
+      {/* Stats row (rating is here, not in header) */}
       {!loadingExtra && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-gray-800/40 rounded-lg p-2 text-center">
@@ -328,61 +327,6 @@ const TeamManage = () => {
               <select className={inputClass} value={form.status} onChange={(e) => set('status', e.target.value)}>
                 {STATUS_OPTIONS.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
               </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Country (for flag)</label>
-              <select className={inputClass} value={form.countryCode || ''} onChange={(e) => set('countryCode', e.target.value || null)}>
-                <option value="">🌍 None / Global</option>
-                <option value="EU">🇪🇺 European Union</option>
-                <option value="CIS">🤝 CIS</option>
-                <option value="LT">🇱🇹 Lithuania</option>
-                <option value="LV">🇱🇻 Latvia</option>
-                <option value="EE">🇪🇪 Estonia</option>
-                <option value="PL">🇵🇱 Poland</option>
-                <option value="DE">🇩🇪 Germany</option>
-                <option value="FR">🇫🇷 France</option>
-                <option value="ES">🇪🇸 Spain</option>
-                <option value="IT">🇮🇹 Italy</option>
-                <option value="GB">🇬🇧 United Kingdom</option>
-                <option value="US">🇺🇸 United States</option>
-                <option value="CA">🇨🇦 Canada</option>
-                <option value="BR">🇧🇷 Brazil</option>
-                <option value="JP">🇯🇵 Japan</option>
-                <option value="KR">🇰🇷 South Korea</option>
-                <option value="CN">🇨🇳 China</option>
-                <option value="IN">🇮🇳 India</option>
-                <option value="AU">🇦🇺 Australia</option>
-                <option value="SE">🇸🇪 Sweden</option>
-                <option value="NO">🇳🇴 Norway</option>
-                <option value="DK">🇩🇰 Denmark</option>
-                <option value="FI">🇫🇮 Finland</option>
-                <option value="NL">🇳🇱 Netherlands</option>
-                <option value="BE">🇧🇪 Belgium</option>
-                <option value="CH">🇨🇭 Switzerland</option>
-                <option value="AT">🇦🇹 Austria</option>
-                <option value="CZ">🇨🇿 Czechia</option>
-                <option value="SK">🇸🇰 Slovakia</option>
-                <option value="HU">🇭🇺 Hungary</option>
-                <option value="RO">🇷🇴 Romania</option>
-                <option value="BG">🇧🇬 Bulgaria</option>
-                <option value="GR">🇬🇷 Greece</option>
-                <option value="TR">🇹🇷 Turkey</option>
-                <option value="RU">🇷🇺 Russia</option>
-                <option value="UA">🇺🇦 Ukraine</option>
-                <option value="BY">🇧🇾 Belarus</option>
-                <option value="KZ">🇰🇿 Kazakhstan</option>
-                <option value="GE">🇬🇪 Georgia</option>
-                <option value="AM">🇦🇲 Armenia</option>
-                <option value="AZ">🇦🇿 Azerbaijan</option>
-                <option value="IL">🇮🇱 Israel</option>
-                <option value="AE">🇦🇪 UAE</option>
-                <option value="SA">🇸🇦 Saudi Arabia</option>
-                <option value="EG">🇪🇬 Egypt</option>
-                <option value="ZA">🇿🇦 South Africa</option>
-                <option value="MX">🇲🇽 Mexico</option>
-                <option value="AR">🇦🇷 Argentina</option>
-              </select>
-              <p className="text-[10px] text-gray-500 mt-1">Only shown if set; otherwise a globe icon is used.</p>
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-medium text-gray-300 mb-1">Motto / Recruitment note</label>
