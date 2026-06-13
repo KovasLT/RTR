@@ -75,14 +75,9 @@ const Players = () => {
                 <tr key={player.id} className="hover:bg-slate-900/40 transition">
                   <td className="px-6 py-4 font-bold text-slate-400 font-mono">{index + 1}</td>
                   <td className="px-6 py-4">
-                    <Link to={`/profile/${player.id}`} className="flex items-center space-x-2.5 group">
+                    <Link to={`/player/${player.id}`} className="flex items-center space-x-2.5 group">
                       {player.country ? (
-                        <img
-                          src={`https://flagcdn.com/${player.country.toLowerCase()}.svg`}
-                          width="20"
-                          className="rounded-[2px] shadow-sm"
-                          alt={player.country}
-                        />
+                        <img src={`https://flagcdn.com/${player.country.toLowerCase()}.svg`} width="20" className="rounded-[2px] shadow-sm" alt={player.country} />
                       ) : (
                         <span className="text-[14px] w-5 text-center">🌍</span>
                       )}

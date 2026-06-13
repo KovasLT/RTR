@@ -24,7 +24,8 @@ import RecentMatches from '../components/RecentMatches';
 import RecentSignings from '../components/RecentSignings';
 import RecentScrims from '../components/RecentScrims';
 import RecentPlacements from '../components/RecentPlacements';
-import PlayerPanel from '../components/PlayerPanel';  // <-- IMPORT FROM SEPARATE FILE
+import PlayerPanel from '../components/PlayerPanel';
+import CoachPanel from '../components/CoachPanel';   // <-- imported
 
 const REASON = APP_CONSTANTS.DASHBOARD.RATING_REASONS;
 
@@ -68,7 +69,7 @@ const ComingSoon = ({ text }) => (
   </div>
 );
 
-// Team Manager Panel (unchanged)
+// Team Manager Panel
 const TeamManagerPanel = ({ rating, userId }) => {
   const navigate = useNavigate();
   const { data: teams = [] } = useMyTeams(userId);
@@ -136,7 +137,7 @@ const TeamManagerPanel = ({ rating, userId }) => {
   );
 };
 
-// Scout Panel (unchanged)
+// Scout Panel
 const ScoutPanel = ({ rating, userId }) => {
   const { data: list = [] } = useMyWatchlist(userId);
   const { unwatch } = useScoutMutations();
@@ -195,32 +196,6 @@ const ScoutAddPlayer = ({ scoutId, existingIds }) => {
           </div>
         ))}
       </div>
-    </div>
-  );
-};
-
-const CoachPanel = ({ profile, rating, userId }) => {
-  const c = profile?.coach;
-  const { data: teams = [] } = useMyStaffTeams(userId, 'coach');
-  const { data: history = [] } = useRatingHistory('coach', userId);
-  const { data: endorsements = [] } = useEndorsements(userId);
-  const endorseCount = endorsements.filter((e) => e.subject_type === 'coach').length;
-
-  return (
-    <div className="space-y-4">
-      <div className="rtr-card">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white"><i className={`fas ${APP_CONSTANTS.ROLE_ICONS.coach} mr-2 text-indigo-300`}></i>{D.COACH_TITLE}</h3>
-          <RatingBadge value={rating} />
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-          <div><div className="text-gray-500">{D.COACH_SPECIALTIES}</div><div className="text-white">{c?.specialties || '—'}</div></div>
-          <div><div className="text-gray-500">{D.COACH_EXPERIENCE}</div><div className="text-white">{c?.experience_years != null ? `${c.experience_years} ${D.COACH_YEARS}` : '—'}</div></div>
-          <div><div className="text-gray-500">{D.COACH_AVAILABILITY}</div><div className="text-white">{c?.availability || '—'}</div></div>
-          <div><div className="text-gray-500">{D.COACH_ENDORSEMENTS}</div><div className="text-white"><i className="fas fa-thumbs-up text-indigo-300 mr-1"></i>{endorseCount}</div></div>
-        </div>
-      </div>
-      <ActivityCard events={history} />
     </div>
   );
 };
@@ -286,7 +261,16 @@ const Dashboard = () => {
       <nav className="flex flex-col items-center gap-1 w-14 sm:w-52 bg-[#111111] border border-gray-800/80 rounded-2xl p-2 sticky top-20 self-start shrink-0">
         <NavItem icon="fa-gauge-high" label={D.OVERVIEW} active={current === 'overview'} onClick={() => setActive('overview')} />
         {navRoles.length > 0 && <div className="my-1 h-px w-full bg-gray-800" />}
-        {navRoles.map((r) => <NavItem key={r} icon={APP_CONSTANTS.ROLE_ICONS[r]} label={APP_CONSTANTS.ROLES[r]} active={current === r} badge={badgeFor(r)} onClick={() => setActive(r)} />)}
+        {navRoles.map((r) => (
+          <NavItem
+            key={r}
+            icon={APP_CONSTANTS.ROLE_ICONS[r]}
+            label={APP_CONSTANTS.ROLES[r]}
+            active={current === r}
+            badge={badgeFor(r)}
+            onClick={() => setActive(r)}
+          />
+        ))}
         <div className="my-1 h-px w-full bg-gray-800" />
         {isAdmin && <NavItem icon="fa-shield-halved" label={APP_CONSTANTS.NAV.ADMIN} accent to="/admin" />}
         <div className="my-2 h-px w-full bg-gray-800/60" />
