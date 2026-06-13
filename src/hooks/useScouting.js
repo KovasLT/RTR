@@ -1,88 +1,119 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
 
-/**
- * Scout interest (watchlists). RLS keeps rows private to the scout who owns
- * them and the player being watched.
- */
-
 const unwrap = (promise) =>
-  promise.then((r) => {
-    if (r.error) throw r.error;
-    return r.data;
-  });
+promise.then((r) => {
+  if (r.error) throw r.error;
+  return r.data;
+});
 
-/** Scouts watching a given player (player side: "scouts watching me"). */
-export const useScoutsWatchingMe = (playerId) =>
-  useQuery({
-    queryKey: ['scouting', 'watchers', playerId],
-    enabled: Boolean(supabase) && Boolean(playerId),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('scout_interests')
-        .select('id, status, created_at, scout:profiles!scout_interests_scout_id_fkey(id, display_name, handle, avatar_url)')
-        .eq('player_id', playerId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-/** A scout's own watchlist, with each player's detail + player rating. */
 export const useMyWatchlist = (scoutId) =>
-  useQuery({
-    queryKey: ['scouting', 'watchlist', scoutId],
-    enabled: Boolean(supabase) && Boolean(scoutId),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('scout_interests')
-        .select(
-          `id, status, note, created_at,
-           player:profiles!scout_interests_player_id_fkey(
-             id, display_name, handle, avatar_url,
-             player:player_profiles(server, lane:lanes(name), rank:ranks(name))
-           )`,
-        )
-        .eq('scout_id', scoutId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
+useQuery({
+  queryKey: ['myWatchlist', scoutId],
+  enabled: Boolean(scoutId),
+         queryFn: async () => {
+           const { data, error } = await supabase
+           .from('scout_interests')
+           .select(`
+           player_id,
+           player:profiles!player_id(display_name, handle, avatar_url)
+           `)
+           .eq('scout_id', scoutId);
+           if (error) throw error;
 
-      const rows = (data ?? []).filter((r) => r.player);
-      const { data: ratings } = await supabase
-        .from('ratings')
-        .select('subject_id, rating')
-        .eq('subject_type', 'player')
-        .in('subject_id', rows.map((r) => r.player.id));
-      const byId = new Map((ratings ?? []).map((r) => [r.subject_id, r.rating]));
+           if (!data?.length) return [];
 
-      return rows.map((r) => ({
-        id: r.id,
-        status: r.status,
-        note: r.note,
-        playerId: r.player.id,
-        name: r.player.display_name || r.player.handle || 'Unknown',
-        lane: r.player.player?.lane?.name || null,
-        rank: r.player.player?.rank?.name || null,
-        rating: byId.get(r.player.id) ?? null,
-      }));
-    },
-  });
+           const playerIds = data.map(item => item.player_id);
+           // Fetch player_profiles for lane/rank
+           const { data: profiles } = await supabase
+           .from('player_profiles')
+           .select('user_id, lane:lanes(name), rank:ranks(name), looking_for_team')
+           .in('user_id', playerIds);
+           const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
 
-/** Add / remove players from the current scout's watchlist. */
+           // Fetch ratings
+           const { data: ratings } = await supabase
+           .from('ratings')
+           .select('subject_id, rating')
+           .eq('subject_type', 'player')
+           .in('subject_id', playerIds);
+           const ratingMap = new Map(ratings?.map(r => [r.subject_id, r.rating]) || []);
+
+           // Fetch current team for each player
+           const { data: memberships } = await supabase
+           .from('team_members')
+           .select('user_id, team:teams(name, tag)')
+           .in('user_id', playerIds)
+           .is('left_at', null);
+           const teamMap = new Map();
+           memberships?.forEach(m => teamMap.set(m.user_id, m.team));
+
+           return data.map(item => {
+             const player = item.player;
+             const profile = profileMap.get(item.player_id);
+             const rating = ratingMap.get(item.player_id) || 1200;
+             const team = teamMap.get(item.player_id);
+             return {
+               id: item.player_id,
+               playerId: item.player_id,
+               name: player?.display_name || player?.handle || 'Unknown',
+               lane: profile?.lane?.name || null,
+               rank: profile?.rank?.name || null,
+               rating,
+               team: team?.name,
+               teamTag: team?.tag,
+               lookingForTeam: profile?.looking_for_team || false,
+             };
+           });
+         },
+});
+
+export const useScoutsWatchingMe = (playerId) =>
+useQuery({
+  queryKey: ['scoutsWatchingMe', playerId],
+  enabled: Boolean(playerId),
+         queryFn: async () => {
+           const { data, error } = await supabase
+           .from('scout_interests')
+           .select(`
+           scout_id,
+           scout:profiles!scout_id(display_name, handle)
+           `)
+           .eq('player_id', playerId);
+           if (error) throw error;
+           return data || [];
+         },
+});
+
 export const useScoutMutations = () => {
   const qc = useQueryClient();
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['scouting'] });
 
   const watch = useMutation({
-    mutationFn: ({ scoutId, playerId, note }) =>
-      unwrap(supabase.from('scout_interests').insert({ scout_id: scoutId, player_id: playerId, note: note || null })),
-    onSuccess: invalidate,
+    mutationFn: async ({ scoutId, playerId }) => {
+      const { error } = await supabase
+      .from('scout_interests')
+      .upsert({ scout_id: scoutId, player_id: playerId }, { onConflict: 'scout_id,player_id', ignoreDuplicates: true });
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['myWatchlist', vars.scoutId] });
+      qc.invalidateQueries({ queryKey: ['scoutsWatchingMe'] });
+    },
   });
 
   const unwatch = useMutation({
-    mutationFn: ({ scoutId, playerId }) =>
-      unwrap(supabase.from('scout_interests').delete().eq('scout_id', scoutId).eq('player_id', playerId)),
-    onSuccess: invalidate,
+    mutationFn: async ({ scoutId, playerId }) => {
+      const { error } = await supabase
+      .from('scout_interests')
+      .delete()
+      .eq('scout_id', scoutId)
+      .eq('player_id', playerId);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['myWatchlist', vars.scoutId] });
+      qc.invalidateQueries({ queryKey: ['scoutsWatchingMe'] });
+    },
   });
 
   return { watch, unwatch };

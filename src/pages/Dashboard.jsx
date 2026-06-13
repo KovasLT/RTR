@@ -25,7 +25,8 @@ import RecentSignings from '../components/RecentSignings';
 import RecentScrims from '../components/RecentScrims';
 import RecentPlacements from '../components/RecentPlacements';
 import PlayerPanel from '../components/PlayerPanel';
-import CoachPanel from '../components/CoachPanel';   // <-- imported
+import CoachPanel from '../components/CoachPanel';
+import ScoutPanel from '../components/ScoutPanel';   // <-- imported
 
 const REASON = APP_CONSTANTS.DASHBOARD.RATING_REASONS;
 
@@ -137,69 +138,7 @@ const TeamManagerPanel = ({ rating, userId }) => {
   );
 };
 
-// Scout Panel
-const ScoutPanel = ({ rating, userId }) => {
-  const { data: list = [] } = useMyWatchlist(userId);
-  const { unwatch } = useScoutMutations();
-
-  return (
-    <div className="space-y-4">
-      <div className="rtr-card">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold text-white"><i className={`fas ${APP_CONSTANTS.ROLE_ICONS.scout} mr-2 text-indigo-300`}></i>{D.SCOUT_WATCHLIST_TITLE}</h3>
-          <RatingBadge value={rating} />
-        </div>
-        {list.length === 0 ? (
-          <p className="text-sm text-gray-400">{D.SCOUT_WATCHLIST_EMPTY}</p>
-        ) : (
-          <div className="space-y-2">
-            {list.map((w) => (
-              <div key={w.id} className="flex flex-wrap items-center gap-3 border-b border-gray-800 pb-2 last:border-0">
-                <Link to={`/profile/${w.playerId}`} className="text-white font-medium hover:underline flex-grow">{w.name}</Link>
-                <span className="text-xs text-gray-500">{w.lane || '—'}{w.rank ? ` · ${w.rank}` : ''}</span>
-                <RatingBadge value={w.rating} />
-                <button onClick={() => unwatch.mutate({ scoutId: userId, playerId: w.playerId })} className="text-xs text-gray-500 hover:text-red-400">{D.SCOUT_REMOVE}</button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-      <ScoutAddPlayer scoutId={userId} existingIds={new Set(list.map((w) => w.playerId))} />
-    </div>
-  );
-};
-
-const ScoutAddPlayer = ({ scoutId, existingIds }) => {
-  const { data: people = [] } = useDirectory();
-  const { watch } = useScoutMutations();
-  const [search, setSearch] = useState('');
-
-  const results = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return [];
-    return people
-      .filter((p) => p.roles.includes('player'))
-      .filter((p) => p.id !== scoutId && !existingIds.has(p.id))
-      .filter((p) => (p.display_name || p.handle || '').toLowerCase().includes(q))
-      .slice(0, 8);
-  }, [people, search, existingIds, scoutId]);
-
-  return (
-    <div className="rtr-card">
-      <h3 className="text-lg font-semibold text-white mb-3">{D.SCOUT_ADD_TITLE}</h3>
-      <input className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500" placeholder={D.SCOUT_SEARCH} value={search} onChange={(e) => setSearch(e.target.value)} />
-      <div className="mt-3 space-y-2">
-        {results.map((p) => (
-          <div key={p.id} className="flex items-center gap-3 border-b border-gray-800 pb-2 last:border-0">
-            <Link to={`/profile/${p.id}`} className="text-white font-medium hover:underline flex-grow">{p.display_name || p.handle}</Link>
-            <button onClick={() => watch.mutate({ scoutId, playerId: p.id })} className="text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded px-3 py-1">{D.SCOUT_WATCH}</button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
+// ScaffoldPanel (kept as is)
 const ScaffoldPanel = ({ title, body, soon, rating, icon }) => (
   <div className="rtr-card">
     <div className="flex items-center justify-between mb-2">
