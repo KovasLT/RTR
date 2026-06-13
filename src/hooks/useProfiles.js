@@ -67,7 +67,6 @@ useQuery({
   queryFn: async () => {
     if (!supabase) return [];
 
-    // 1. Get all profiles
     const { data: profiles, error } = await supabase
     .from('profiles')
     .select('id, handle, display_name, avatar_url, bio, country_iso, created_at, region_id');
@@ -76,13 +75,9 @@ useQuery({
 
     const userIds = profiles.map(p => p.id);
 
-    // 2. Fetch roles for all users
     const rolesMap = await fetchRolesForUsers(userIds);
-
-    // 3. Fetch player profiles
     const playerProfilesMap = await fetchPlayerProfiles(userIds);
 
-    // 4. Fetch region names (for those with region_id)
     const regionIds = [...new Set(profiles.map(p => p.region_id).filter(Boolean))];
     const { data: regions } = await supabase
     .from('regions')
@@ -90,15 +85,12 @@ useQuery({
     .in('id', regionIds);
     const regionMap = new Map(regions?.map(r => [r.id, r]) || []);
 
-    // 5. Fetch lane names for player profiles that have lane_id
     const laneIds = [...new Set(Object.values(playerProfilesMap).map(p => p.lane_id).filter(Boolean))];
     const laneMap = await fetchLanes(laneIds);
 
-    // 6. Fetch rank names
     const rankIds = [...new Set(Object.values(playerProfilesMap).map(p => p.rank_id).filter(Boolean))];
     const rankMap = await fetchRanks(rankIds);
 
-    // 7. Fetch player ratings
     const { data: ratings } = await supabase
     .from('ratings')
     .select('subject_id, rating')
@@ -106,7 +98,6 @@ useQuery({
     .in('subject_id', userIds);
     const ratingMap = new Map(ratings?.map(r => [r.subject_id, r.rating]) || []);
 
-    // Build final array
     return profiles.map(prof => {
       const roles = rolesMap.get(prof.id) || [];
       const playerProf = playerProfilesMap.get(prof.id);
@@ -123,6 +114,7 @@ useQuery({
         roles,
         player: playerProf ? {
           lane: laneMap.get(playerProf.lane_id) || null,
+                        secondary_lane: laneMap.get(playerProf.secondary_lane_id) || null,
                         rank: rankMap.get(playerProf.rank_id) || null,
                         server: playerProf.server,
                         looking_for_team: playerProf.looking_for_team,
@@ -172,10 +164,12 @@ useQuery({
            const playerProf = playerProfilesMap.get(id);
            let player = null;
            if (playerProf) {
-             const laneMap = await fetchLanes([playerProf.lane_id].filter(Boolean));
+             const laneIds = [playerProf.lane_id, playerProf.secondary_lane_id].filter(Boolean);
+             const laneMap = await fetchLanes(laneIds);
              const rankMap = await fetchRanks([playerProf.rank_id].filter(Boolean));
              player = {
                lane: laneMap.get(playerProf.lane_id) || null,
+         secondary_lane: laneMap.get(playerProf.secondary_lane_id) || null,
          rank: rankMap.get(playerProf.rank_id) || null,
          server: playerProf.server,
          looking_for_team: playerProf.looking_for_team,
@@ -184,13 +178,13 @@ useQuery({
              };
            }
 
-           // 5. Get ratings for all roles (team, player, coach, etc.)
+           // 5. Get ratings for all roles
            const { data: ratings } = await supabase
            .from('ratings')
            .select('subject_type, rating, games_count')
            .eq('subject_id', id);
 
-           // 6. Get coach profile (if coach role)
+           // 6. Get coach profile
            let coach = null;
            if (roles.includes('coach')) {
              const { data: coachData } = await supabase
@@ -212,7 +206,7 @@ useQuery({
              scout = scoutData;
            }
 
-           // 8. Get tournament manager profile
+           // 8. Get tournament manager profile (optional)
            let tournamentManager = null;
            if (roles.includes('tournament_manager')) {
              const { data: tmData } = await supabase
@@ -223,7 +217,7 @@ useQuery({
              tournamentManager = tmData;
            }
 
-           // 9. Get team manager profile (just exists)
+           // 9. Get team manager profile
            let teamManager = null;
            if (roles.includes('team_manager')) {
              const { data: tmData } = await supabase
@@ -255,7 +249,7 @@ useQuery({
 });
 
 /**
- * Full rating history for a subject (oldest → newest).
+ * Full rating history for a subject (oldest → newest), from the ledger.
  */
 export const useRatingHistory = (subjectType, subjectId) =>
 useQuery({

@@ -6,16 +6,12 @@ import { useRegions, useLanes, useRanks, useHeroes } from '../hooks/useReference
 import { APP_CONSTANTS } from '../app-constants';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-const ROLE_KEYS = ['player', 'coach', 'scout', 'tournament_manager', 'team_manager'];
+// Removed tournament_manager from role selection (only admins can grant it)
+const ROLE_KEYS = ['player', 'coach', 'scout', 'team_manager'];
 
 const inputClass =
   'w-full bg-gray-800 border border-gray-600 hover:border-gray-500 rounded-lg px-3 py-2 text-white placeholder-gray-500 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500';
 
-/**
- * Profile editor — serves both first-time onboarding (`/onboarding`) and later
- * edits (`/profile/edit`). Writes the profile row, claimed roles, and the
- * role-specific detail rows to Supabase.
- */
 const ProfileEdit = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -34,6 +30,7 @@ const ProfileEdit = () => {
     countryIso: '',
     roles: [],
     laneId: '',
+    secondaryLaneId: '',
     rankId: '',
     server: '',
     availability: '',
@@ -46,8 +43,6 @@ const ProfileEdit = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  // Prefill the form from the existing profile, roles, and role-specific rows.
-  // Done inside an async callback so it runs once the data has loaded.
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
     let active = true;
@@ -76,6 +71,7 @@ const ProfileEdit = () => {
         countryIso: profile?.country_iso || '',
         roles: roles || [],
         laneId: p?.lane_id ? String(p.lane_id) : f.laneId,
+        secondaryLaneId: p?.secondary_lane_id ? String(p.secondary_lane_id) : f.secondaryLaneId,
         rankId: p?.rank_id ? String(p.rank_id) : f.rankId,
         server: p?.server || f.server,
         availability: p?.availability || f.availability,
@@ -139,6 +135,7 @@ const ProfileEdit = () => {
         const { error: err } = await supabase.from('player_profiles').upsert({
           user_id: uid,
           lane_id: form.laneId ? Number(form.laneId) : null,
+          secondary_lane_id: form.secondaryLaneId ? Number(form.secondaryLaneId) : null,
           rank_id: form.rankId ? Number(form.rankId) : null,
           server: form.server || null,
           availability: form.availability || null,
@@ -159,11 +156,6 @@ const ProfileEdit = () => {
       if (form.roles.includes('scout')) {
         await supabase.from('scout_profiles').upsert({ user_id: uid, org: form.org || null, updated_at: now });
       }
-      if (form.roles.includes('tournament_manager')) {
-        await supabase
-          .from('tournament_manager_profiles')
-          .upsert({ user_id: uid, org: form.org || null, updated_at: now });
-      }
       if (form.roles.includes('team_manager')) {
         await supabase.from('team_manager_profiles').upsert({ user_id: uid, updated_at: now });
       }
@@ -182,9 +174,7 @@ const ProfileEdit = () => {
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-white mb-2">
-          {isEditing ? C.EDIT_TITLE : C.TITLE}
-        </h1>
+        <h1 className="text-3xl font-bold text-white mb-2">{isEditing ? C.EDIT_TITLE : C.TITLE}</h1>
         <p className="text-gray-400">{isEditing ? C.EDIT_SUBTITLE : C.SUBTITLE}</p>
       </div>
 
@@ -225,7 +215,7 @@ const ProfileEdit = () => {
           </div>
         </div>
 
-        {/* Roles */}
+        {/* Roles – removed Tournament Manager */}
         <div className="rtr-card space-y-3">
           <div>
             <h3 className="text-lg font-semibold text-white">{C.ROLES_LABEL}</h3>
@@ -268,6 +258,17 @@ const ProfileEdit = () => {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Secondary Lane</label>
+                <select className={inputClass} value={form.secondaryLaneId} onChange={(e) => set('secondaryLaneId', e.target.value)}>
+                  <option value="">None</option>
+                  {lanes.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">{C.RANK_LABEL}</label>
                 <select className={inputClass} value={form.rankId} onChange={(e) => set('rankId', e.target.value)}>
                   <option value="">{C.SELECT_PLACEHOLDER}</option>
@@ -276,16 +277,14 @@ const ProfileEdit = () => {
                   ))}
                 </select>
               </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">{C.SERVER_LABEL}</label>
                 <input className={inputClass} value={form.server} onChange={(e) => set('server', e.target.value)} />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">{C.AVAILABILITY_LABEL}</label>
-                <input className={inputClass} placeholder={C.AVAILABILITY_PLACEHOLDER} value={form.availability} onChange={(e) => set('availability', e.target.value)} />
-              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.AVAILABILITY_LABEL}</label>
+              <input className={inputClass} placeholder={C.AVAILABILITY_PLACEHOLDER} value={form.availability} onChange={(e) => set('availability', e.target.value)} />
             </div>
             {heroes.length > 0 && (
               <div>
@@ -333,7 +332,7 @@ const ProfileEdit = () => {
         )}
 
         {/* Scout / org details */}
-        {(form.roles.includes('scout') || form.roles.includes('tournament_manager')) && (
+        {form.roles.includes('scout') && (
           <div className="rtr-card space-y-4">
             <h3 className="text-lg font-semibold text-white">{C.SCOUT_SECTION}</h3>
             <div>

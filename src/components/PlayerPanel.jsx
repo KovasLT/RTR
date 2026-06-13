@@ -139,7 +139,7 @@ const PlayerPanel = ({ profile, rating, userId }) => {
             <div className="flex flex-wrap justify-center md:justify-start gap-3 sm:gap-6 text-sm">
               <div className="flex items-center gap-2">
                 <i className="fas fa-map-marker-alt text-gray-500"></i>
-                <span className="text-gray-300 font-medium">{p?.server || 'No Server Set'}</span>
+                <span className="text-gray-300 font-medium">Region: {profile?.region?.name || profile?.region?.code || '—'}</span>
               </div>
               <div className="flex items-center gap-2">
                 <i className="fas fa-crosshairs text-gray-500"></i>
