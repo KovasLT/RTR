@@ -26,7 +26,8 @@ import RecentScrims from '../components/RecentScrims';
 import RecentPlacements from '../components/RecentPlacements';
 import PlayerPanel from '../components/PlayerPanel';
 import CoachPanel from '../components/CoachPanel';
-import ScoutPanel from '../components/ScoutPanel';   // <-- imported
+import ScoutPanel from '../components/ScoutPanel';
+import TournamentsPanel from '../components/TournamentsPanel';   // NEW
 
 const REASON = APP_CONSTANTS.DASHBOARD.RATING_REASONS;
 
@@ -189,10 +190,10 @@ const Dashboard = () => {
   const inviteCount = myApps.filter((a) => a.status === 'pending' && a.type === 'invite').length;
   const managerPending = myManagedTeams.reduce((n, t) => n + (t.pendingCount || 0), 0);
   const badgeFor = (r) => (r === 'player' ? inviteCount : r === 'team_manager' ? managerPending : 0);
-  const isCustomAction = ['report-match', 'scrims'].includes(active);
+  const isCustomAction = ['report-match', 'scrims', 'tournaments'].includes(active);
   const current = (active === 'overview' || isCustomAction || navRoles.includes(active)) ? active : 'overview';
 
-  const sectionTitle = current === 'overview' ? D.OVERVIEW : current === 'report-match' ? 'Report Match' : current === 'scrims' ? 'Find Scrims' : APP_CONSTANTS.ROLES[current];
+  const sectionTitle = current === 'overview' ? D.OVERVIEW : current === 'report-match' ? 'Report Match' : current === 'scrims' ? 'Find Scrims' : current === 'tournaments' ? 'Tournaments' : APP_CONSTANTS.ROLES[current];
   const shownRoles = current === 'overview' ? roles : [current];
 
   return (
@@ -214,7 +215,12 @@ const Dashboard = () => {
         {isAdmin && <NavItem icon="fa-shield-halved" label={APP_CONSTANTS.NAV.ADMIN} accent to="/admin" />}
         <div className="my-2 h-px w-full bg-gray-800/60" />
         <span className="hidden sm:block text-[10px] font-bold text-gray-500 uppercase tracking-wider self-start px-3 my-1">{APP_CONSTANTS.NAV.QUICK_ACTIONS_TITLE}</span>
-        <NavItem icon="fa-trophy" label="Tournaments" to="/tournaments" />
+        <NavItem
+          icon="fa-trophy"
+          label="Tournaments"
+          active={current === 'tournaments'}
+          onClick={() => setActive('tournaments')}
+        />
         <NavItem icon="fa-khanda" label={APP_CONSTANTS.NAV.REPORT_MATCH} active={current === 'report-match'} onClick={() => setActive('report-match')} />
         <NavItem icon="fa-satellite-dish" label={APP_CONSTANTS.NAV.LOOK_FOR_SCRIMS} active={current === 'scrims'} onClick={() => setActive('scrims')} />
       </nav>
@@ -240,7 +246,9 @@ const Dashboard = () => {
 
         {current === 'report-match' && <ReportMatch userTeamId={profile?.team_id || profile?.managed_team_id || profile?.player?.team_id} />}
         {current === 'scrims' && <FindScrims />}
-        {!['overview', 'report-match', 'scrims'].includes(current) && (
+        {current === 'tournaments' && <TournamentsPanel />}
+
+        {!['overview', 'report-match', 'scrims', 'tournaments'].includes(current) && (
           shownRoles.length === 0 ? (
             <div className="rtr-card text-center py-10">
               <h3 className="text-lg font-semibold text-white">{D.NO_ROLES_TITLE}</h3>

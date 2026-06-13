@@ -6,11 +6,16 @@ import { useRegions, useLanes, useRanks, useHeroes } from '../hooks/useReference
 import { APP_CONSTANTS } from '../app-constants';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-// Removed tournament_manager from role selection (only admins can grant it)
 const ROLE_KEYS = ['player', 'coach', 'scout', 'team_manager'];
 
 const inputClass =
   'w-full bg-gray-800 border border-gray-600 hover:border-gray-500 rounded-lg px-3 py-2 text-white placeholder-gray-500 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500';
+
+// Local default avatar images (place these in your public/ folder)
+const DEFAULT_AVATARS = [
+  { url: '/male.png', label: 'Male' },
+  { url: '/female.png', label: 'Female' },
+];
 
 const ProfileEdit = () => {
   const navigate = useNavigate();
@@ -39,9 +44,11 @@ const ProfileEdit = () => {
     specialties: '',
     experienceYears: '',
     org: '',
+    avatarUrl: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState('');
 
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
@@ -80,6 +87,7 @@ const ProfileEdit = () => {
         specialties: c?.specialties || f.specialties,
         experienceYears: c?.experience_years ? String(c.experience_years) : f.experienceYears,
         org: s?.org || f.org,
+        avatarUrl: profile?.avatar_url || '',
       }));
     })();
 
@@ -87,6 +95,11 @@ const ProfileEdit = () => {
       active = false;
     };
   }, [isAuthenticated, user?.id, user?.username, profile, roles]);
+
+  // Update avatar preview when URL changes
+  useEffect(() => {
+    setAvatarPreview(form.avatarUrl || DEFAULT_AVATARS[0].url);
+  }, [form.avatarUrl]);
 
   if (isLoading) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
@@ -118,6 +131,7 @@ const ProfileEdit = () => {
           bio: form.bio || null,
           region_id: form.regionId ? Number(form.regionId) : null,
           country_iso: form.countryIso || null,
+          avatar_url: form.avatarUrl || null,
           updated_at: now,
         })
         .eq('id', uid);
@@ -188,8 +202,56 @@ const ProfileEdit = () => {
           </div>
         )}
 
-        {/* Basic info */}
+        {/* Basic info with avatar */}
         <div className="rtr-card space-y-4">
+          {/* Avatar preview and selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Profile Picture</label>
+            <div className="flex items-center gap-4 mb-3">
+              <img
+                src={avatarPreview}
+                alt="Avatar preview"
+                className="w-16 h-16 rounded-full object-cover border border-gray-700"
+                onError={(e) => { e.target.src = DEFAULT_AVATARS[0].url; }}
+              />
+              <div className="flex-1">
+                <input
+                  type="text"
+                  className={inputClass}
+                  placeholder="Custom image URL"
+                  value={form.avatarUrl}
+                  onChange={(e) => set('avatarUrl', e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className="text-xs text-gray-500">Choose:</span>
+              {/* Discord avatar as clickable thumbnail */}
+              {profile?.avatar_url && (
+                <button
+                  type="button"
+                  onClick={() => set('avatarUrl', profile.avatar_url)}
+                  className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-600 hover:border-indigo-500 transition-colors"
+                  title="My Discord avatar"
+                >
+                  <img src={profile.avatar_url} alt="Discord avatar" className="w-full h-full object-cover" />
+                </button>
+              )}
+              {/* Local default avatars */}
+              {DEFAULT_AVATARS.map((item) => (
+                <button
+                  key={item.url}
+                  type="button"
+                  onClick={() => set('avatarUrl', item.url)}
+                  className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-600 hover:border-indigo-500 transition-colors"
+                  title={item.label}
+                >
+                  <img src={item.url} alt={item.label} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">{C.DISPLAY_NAME_LABEL}</label>
             <input className={inputClass} value={form.displayName} onChange={(e) => set('displayName', e.target.value)} />
@@ -215,7 +277,7 @@ const ProfileEdit = () => {
           </div>
         </div>
 
-        {/* Roles – removed Tournament Manager */}
+        {/* Roles */}
         <div className="rtr-card space-y-3">
           <div>
             <h3 className="text-lg font-semibold text-white">{C.ROLES_LABEL}</h3>
