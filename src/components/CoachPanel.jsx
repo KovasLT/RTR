@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useMyStaffTeams } from '../hooks/useTeams.js';
-import { useRatingHistory, useEndorsements } from '../hooks/useProfiles.js';
+import { useRatingHistory } from '../hooks/useProfiles.js';
+import { useEndorsements } from '../hooks/useEndorsements.js';
 import { supabase } from '../lib/supabase';
 import { APP_CONSTANTS } from '../app-constants';
 import Sparkline from './Sparkline';
@@ -21,14 +22,12 @@ const CoachPanel = ({ profile, rating, userId }) => {
   const [loadingStats, setLoadingStats] = useState(false);
   const [loadingLineups, setLoadingLineups] = useState(false);
 
-  // Set first team as selected when teams load
   useEffect(() => {
     if (teams.length > 0 && !selectedTeamId) {
       setSelectedTeamId(teams[0].teamId);
     }
   }, [teams, selectedTeamId]);
 
-  // Fetch stats and lineups for all coached teams (once)
   useEffect(() => {
     if (!teams.length) return;
     const fetchData = async () => {
@@ -36,10 +35,10 @@ const CoachPanel = ({ profile, rating, userId }) => {
       setLoadingLineups(true);
       const statsMap = {};
       const lineupMap = {};
-      
+
       for (const team of teams) {
         const teamId = team.teamId;
-        
+
         // Win rate
         const { data: allMatches } = await supabase
           .from('matches')
@@ -59,11 +58,11 @@ const CoachPanel = ({ profile, rating, userId }) => {
           winRate = Math.round((wins / total) * 100);
         }
 
-        // Recent matches (last 3)
-        const { data: recentMatches } = await supabase
+        // Recent matches (last 3) – with proper team name extraction
+        const { data: recentMatchesRaw } = await supabase
           .from('matches')
           .select(`
-            id, created_at, match_info, score_team_a, score_team_b,
+            id, created_at, match_info, score_team_a, score_team_b, team_a_id, team_b_id,
             team_a:teams!team_a_id(name, tag),
             team_b:teams!team_b_id(name, tag)
           `)
@@ -71,6 +70,38 @@ const CoachPanel = ({ profile, rating, userId }) => {
           .eq('status', 'confirmed')
           .order('created_at', { ascending: false })
           .limit(3);
+
+        const processedMatches = (recentMatchesRaw || []).map(m => {
+          // Safely extract team objects (handle possible array)
+          const teamA = Array.isArray(m.team_a) ? m.team_a[0] : m.team_a;
+          const teamB = Array.isArray(m.team_b) ? m.team_b[0] : m.team_b;
+
+          if (m.team_a_id === teamId) {
+            return {
+              id: m.id,
+              created_at: m.created_at,
+              opponentName: teamB?.name || 'Unknown',
+              teamScore: m.score_team_a,
+              oppScore: m.score_team_b,
+            };
+          } else if (m.team_b_id === teamId) {
+            return {
+              id: m.id,
+              created_at: m.created_at,
+              opponentName: teamA?.name || 'Unknown',
+              teamScore: m.score_team_b,
+              oppScore: m.score_team_a,
+            };
+          } else {
+            return {
+              id: m.id,
+              created_at: m.created_at,
+              opponentName: 'Unknown',
+              teamScore: 0,
+              oppScore: 0,
+            };
+          }
+        });
 
         // Team rating
         const { data: teamRating } = await supabase
@@ -82,7 +113,7 @@ const CoachPanel = ({ profile, rating, userId }) => {
 
         statsMap[teamId] = {
           winRate,
-          recentMatches: recentMatches || [],
+          recentMatches: processedMatches,
           rating: teamRating?.rating || 1200,
         };
 
@@ -91,27 +122,36 @@ const CoachPanel = ({ profile, rating, userId }) => {
           .from('team_members')
           .select(`
             user_id,
-            profile:profiles!user_id(display_name, handle, avatar_url),
-            player_profile:player_profiles!user_id(lane_id, lane:lanes(name))
+            profile:profiles(display_name, handle, avatar_url)
           `)
           .eq('team_id', teamId);
 
         if (members && members.length) {
           const userIds = members.map(m => m.user_id);
+          const { data: playerProfiles } = await supabase
+            .from('player_profiles')
+            .select(`user_id, lane:lanes(name)`)
+            .in('user_id', userIds);
+          const playerMap = new Map(playerProfiles?.map(p => [p.user_id, p]) || []);
+
           const { data: ratings } = await supabase
             .from('ratings')
             .select('subject_id, rating')
             .eq('subject_type', 'player')
             .in('subject_id', userIds);
           const ratingMap = new Map(ratings?.map(r => [r.subject_id, r.rating]) || []);
-          
-          const playersWithRating = members.map(m => ({
-            id: m.user_id,
-            name: m.profile?.display_name || m.profile?.handle || 'Unknown',
-            avatar: m.profile?.avatar_url,
-            lane: m.player_profile?.lane?.name || '—',
-            rating: ratingMap.get(m.user_id) || 1200,
-          }));
+
+          const playersWithRating = members.map(m => {
+            const prof = Array.isArray(m.profile) ? m.profile[0] : m.profile;
+            const playerProfile = playerMap.get(m.user_id);
+            return {
+              id: m.user_id,
+              name: prof?.display_name || prof?.handle || 'Unknown',
+              avatar: prof?.avatar_url,
+              lane: playerProfile?.lane?.name || '—',
+              rating: ratingMap.get(m.user_id) || 1200,
+            };
+          });
           playersWithRating.sort((a, b) => b.rating - a.rating);
           lineupMap[teamId] = playersWithRating.slice(0, 5);
         } else {
@@ -171,7 +211,6 @@ const CoachPanel = ({ profile, rating, userId }) => {
 
       {/* Middle Section: Teams & History Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
         {/* Left Column: Selected Team Details */}
         <div className="flex flex-col gap-6">
           {teams.length === 0 ? (
@@ -180,7 +219,6 @@ const CoachPanel = ({ profile, rating, userId }) => {
             </div>
           ) : (
             <>
-              {/* Team Selector (if multiple teams) */}
               {teams.length > 1 && (
                 <div className="bg-gray-800/30 rounded-lg p-2 flex justify-center">
                   <select
@@ -225,16 +263,12 @@ const CoachPanel = ({ profile, rating, userId }) => {
                       ) : (
                         <div className="space-y-2">
                           {currentTeamStats.recentMatches.map(m => {
-                            const isTeamA = m.team_a_id === selectedTeam.teamId;
-                            const teamScore = isTeamA ? m.score_team_a : m.score_team_b;
-                            const oppScore = isTeamA ? m.score_team_b : m.score_team_a;
-                            const opponentName = isTeamA ? m.team_b?.name : m.team_a?.name;
-                            const result = teamScore > oppScore ? 'Win' : teamScore === oppScore ? 'Draw' : 'Loss';
+                            const result = m.teamScore > m.oppScore ? 'Win' : m.teamScore === m.oppScore ? 'Draw' : 'Loss';
                             const resultColor = result === 'Win' ? 'text-emerald-400' : result === 'Loss' ? 'text-rose-500' : 'text-amber-400';
                             return (
                               <div key={m.id} className="grid grid-cols-[1fr_auto_1fr] items-center text-xs">
-                                <span className="text-gray-300 truncate pr-4">vs {opponentName}</span>
-                                <span className={`font-mono font-medium ${resultColor} text-center w-12`}>{teamScore}-{oppScore}</span>
+                                <span className="text-gray-300 truncate pr-4">vs {m.opponentName || '?'}</span>
+                                <span className={`font-mono font-medium ${resultColor} text-center w-12`}>{m.teamScore}-{m.oppScore}</span>
                                 <span className="text-gray-600 text-right">{new Date(m.created_at).toISOString().split('T')[0]}</span>
                               </div>
                             );
@@ -270,7 +304,7 @@ const CoachPanel = ({ profile, rating, userId }) => {
       </div>
 
       {/* Bottom Section: Team Lineup for Selected Team */}
-      {selectedTeam && currentTeamLineup.length > 0 && (
+      {selectedTeam && currentTeamLineup?.length > 0 && (
         <div className="mt-8">
           <h3 className="text-xl text-white mb-6 font-medium">
             {teams.length > 1 ? `${selectedTeam.name}'s lineup` : "Team's lineup"}

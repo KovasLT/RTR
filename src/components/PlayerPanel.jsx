@@ -15,7 +15,7 @@ const PlayerPanel = ({ profile, rating, userId }) => {
   const { data: history = [] } = useRatingHistory('player', userId);
   const { setLookingForTeam } = usePlayerMutations();
 
-  const userTeam = teams[0];
+  const userTeam = teams[0]; // player can only have one team at a time
 
   const [recentMatches, setRecentMatches] = useState([]);
   const [tournamentPlacements, setTournamentPlacements] = useState([]);
@@ -29,24 +29,34 @@ const PlayerPanel = ({ profile, rating, userId }) => {
       setLoadingExtra(false);
       return;
     }
-    const fetchExtra = async () => {
+    const fetchPlayerMatches = async () => {
       setLoadingExtra(true);
       try {
-        const { data: matches } = await supabase
-          .from('matches')
-          .select(`
-            id, created_at, match_info, score_team_a, score_team_b,
-            team_a_rating_before, team_a_rating_after,
-            team_b_rating_before, team_b_rating_after,
-            team_a:teams!team_a_id(id, name, tag),
-            team_b:teams!team_b_id(id, name, tag)
-          `)
-          .or(`team_a_id.eq.${userTeam.teamId},team_b_id.eq.${userTeam.teamId}`)
-          .eq('status', 'confirmed')
-          .order('created_at', { ascending: false })
-          .limit(4);
-        setRecentMatches(matches || []);
+        // Fetch all confirmed matches where the player participated (using RPC)
+        const { data: matches, error } = await supabase.rpc('get_player_matches', {
+          p_player_id: userId,
+        });
+        if (error) throw error;
 
+        const allMatches = matches || [];
+        setMatchesPlayed(allMatches.length);
+
+        // Compute wins/losses
+        let w = 0, l = 0;
+        allMatches.forEach(m => {
+          const isTeamA = m.team_a_id === userTeam.teamId;
+          const teamScore = isTeamA ? m.score_team_a : m.score_team_b;
+          const oppScore = isTeamA ? m.score_team_b : m.score_team_a;
+          if (teamScore > oppScore) w++;
+          else if (teamScore < oppScore) l++;
+        });
+        setWins(w);
+        setLosses(l);
+
+        // Recent matches (last 4)
+        setRecentMatches(allMatches.slice(0, 4));
+
+        // Tournament placements (team-based – optional)
         const { data: placements } = await supabase
           .from('tournament_teams')
           .select(`
@@ -58,84 +68,48 @@ const PlayerPanel = ({ profile, rating, userId }) => {
           .order('placement', { ascending: true })
           .limit(5);
         setTournamentPlacements(placements || []);
-
-        const { data: allMatches } = await supabase
-          .from('matches')
-          .select('score_team_a, score_team_b, team_a_id, team_b_id')
-          .or(`team_a_id.eq.${userTeam.teamId},team_b_id.eq.${userTeam.teamId}`)
-          .eq('status', 'confirmed');
-        if (allMatches && allMatches.length) {
-          let w = 0, l = 0;
-          allMatches.forEach(m => {
-            const isTeamA = m.team_a_id === userTeam.teamId;
-            const teamScore = isTeamA ? m.score_team_a : m.score_team_b;
-            const oppScore = isTeamA ? m.score_team_b : m.score_team_a;
-            if (teamScore > oppScore) w++;
-            else if (teamScore < oppScore) l++;
-          });
-          setWins(w);
-          setLosses(l);
-          setMatchesPlayed(allMatches.length);
-        } else {
-          setWins(0);
-          setLosses(0);
-          setMatchesPlayed(0);
-        }
       } catch (err) {
         console.error(err);
       } finally {
         setLoadingExtra(false);
       }
     };
-    fetchExtra();
-  }, [userTeam]);
+    fetchPlayerMatches();
+  }, [userTeam, userId]);
 
   const peakRating = history.length ? Math.max(...history.map(h => h.new_rating)) : null;
   const winRate = matchesPlayed ? Math.round((wins / matchesPlayed) * 100) : null;
   const sparklineData = [...history].map(h => h.new_rating);
 
-  // Handle toggle with better logging and error handling
   const handleToggleLooking = async () => {
-    console.log('Toggling looking for team for user:', userId, 'current value:', p?.looking_for_team);
     try {
       await setLookingForTeam.mutateAsync({ userId, value: !p?.looking_for_team });
-      console.log('Toggle successful');
     } catch (err) {
-      console.error('Toggle failed:', err);
       alert('Failed to update status. Please try again.');
     }
   };
 
-  // Get display name
   const displayName = profile?.display_name || profile?.handle || 'Unknown Player';
   const avatarUrl = profile?.avatar_url || 'https://cdn.discordapp.com/embed/avatars/0.png';
 
   return (
     <div className="space-y-6 animate-fade-in">
-      
-      {/* 1. HERO SECTION */}
+      {/* Hero Section */}
       <div className="relative bg-gradient-to-br from-[#1a1f35] to-[#111111] border border-indigo-500/20 rounded-2xl p-6 overflow-hidden shadow-lg">
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-600/10 blur-3xl rounded-full pointer-events-none"></div>
-        
         <div className="relative flex flex-col md:flex-row items-center md:items-start gap-6">
           <img
             src={avatarUrl}
             alt="Avatar"
             className="w-24 h-24 rounded-full object-cover border-2 border-indigo-500/50 shadow-md bg-gray-900"
           />
-          
           <div className="flex-1 text-center md:text-left">
             <div className="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 mb-3">
-              <h2 className="text-3xl font-bold text-white tracking-tight">
-                {displayName}
-              </h2>
+              <h2 className="text-3xl font-bold text-white tracking-tight">{displayName}</h2>
               <div className="inline-block bg-indigo-950/30 border border-indigo-500/30 rounded-full px-3 py-1">
-                <span className="text-indigo-300 font-mono font-bold text-sm">
-                  Rating: {rating ?? 1200}
-                </span>
+                <span className="text-indigo-300 font-mono font-bold text-sm">Rating: {rating ?? 1200}</span>
               </div>
             </div>
-            
             <div className="flex flex-wrap justify-center md:justify-start gap-3 sm:gap-6 text-sm">
               <div className="flex items-center gap-2">
                 <i className="fas fa-map-marker-alt text-gray-500"></i>
@@ -151,15 +125,14 @@ const PlayerPanel = ({ profile, rating, userId }) => {
               </div>
             </div>
           </div>
-
           <div className="mt-4 md:mt-0 flex flex-col items-center md:items-end justify-center min-w-[140px]">
             <span className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-2">Recruitment Status</span>
             <button
               onClick={handleToggleLooking}
               disabled={setLookingForTeam.isPending}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm border ${
-                p?.looking_for_team 
-                  ? 'bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/20' 
+                p?.looking_for_team
+                  ? 'bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/20'
                   : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'
               }`}
             >
@@ -170,7 +143,7 @@ const PlayerPanel = ({ profile, rating, userId }) => {
         </div>
       </div>
 
-      {/* 2. GLANCE STATS ROW */}
+      {/* Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-[#151922] border border-gray-800/80 rounded-xl p-4 flex flex-col items-center justify-center">
           <span className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-1">Total Wins</span>
@@ -190,12 +163,10 @@ const PlayerPanel = ({ profile, rating, userId }) => {
         </div>
       </div>
 
-      {/* 3. MAIN CONTENT SPLIT */}
+      {/* Main Content Split */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        
-        {/* LEFT COLUMN */}
+        {/* Left Column */}
         <div className="xl:col-span-2 space-y-6">
-          
           {/* Rating Graph Card */}
           <div className="bg-[#111111] border border-gray-800 rounded-xl p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4">
@@ -219,17 +190,16 @@ const PlayerPanel = ({ profile, rating, userId }) => {
             )}
           </div>
 
-          {/* Recent Matches Detailed List */}
+          {/* Recent Matches */}
           <div className="bg-[#111111] border border-gray-800 rounded-xl p-5 shadow-sm">
             <h3 className="text-sm font-bold text-white uppercase tracking-wide mb-4">
               <i className="fas fa-history text-indigo-400 mr-2"></i> Recent Scrims & Matches
             </h3>
-            
             {!userTeam || loadingExtra ? (
-              <div className="py-8 text-center text-gray-500 text-sm">Loading match history vectors...</div>
+              <div className="py-8 text-center text-gray-500 text-sm">Loading match history...</div>
             ) : recentMatches.length === 0 ? (
               <div className="py-8 text-center border border-dashed border-gray-800 rounded-lg text-gray-500 text-sm">
-                No recent matches recorded on the ladder.
+                No recent matches recorded.
               </div>
             ) : (
               <div className="space-y-3">
@@ -244,15 +214,13 @@ const PlayerPanel = ({ profile, rating, userId }) => {
                   const isDraw = teamScore === oppScore;
                   const opponentName = isTeamA ? m.team_b?.name : m.team_a?.name;
                   const winProbPercent = Math.round(winProbability(ratingTeam, ratingOpp) * 100);
-
                   return (
                     <div key={m.id} className="group bg-[#151922] hover:bg-[#1a1f2e] border border-gray-800 hover:border-gray-700 rounded-lg p-3 sm:p-4 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${
-                            isWin ? 'bg-green-950/50 text-green-400 border border-green-900/50' : 
-                            isDraw ? 'bg-yellow-950/50 text-yellow-400 border border-yellow-900/50' : 
+                            isWin ? 'bg-green-950/50 text-green-400 border border-green-900/50' :
+                            isDraw ? 'bg-yellow-950/50 text-yellow-400 border border-yellow-900/50' :
                             'bg-red-950/50 text-red-400 border border-red-900/50'
                           }`}>
                             {isWin ? 'VICTORY' : isDraw ? 'DRAW' : 'DEFEAT'}
@@ -262,14 +230,10 @@ const PlayerPanel = ({ profile, rating, userId }) => {
                         <div className="text-white font-medium truncate">vs {opponentName}</div>
                         <div className="text-[10px] text-gray-500 mt-0.5">{new Date(m.created_at).toLocaleString()}</div>
                       </div>
-
                       <div className="flex flex-col items-center justify-center px-4 border-l border-r border-gray-800/50">
                         <div className="text-xl font-mono font-black text-white tracking-widest">{teamScore} - {oppScore}</div>
-                        <div className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">
-                          {winProbPercent}% Prob.
-                        </div>
+                        <div className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">{winProbPercent}% Prob.</div>
                       </div>
-
                       <div className="w-20 text-right flex flex-col items-end justify-center">
                         <div className={`text-lg font-mono font-bold ${deltaTeam >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                           {deltaTeam >= 0 ? `+${deltaTeam}` : deltaTeam}
@@ -284,15 +248,13 @@ const PlayerPanel = ({ profile, rating, userId }) => {
           </div>
         </div>
 
-        {/* RIGHT COLUMN */}
+        {/* Right Column */}
         <div className="space-y-6">
-          
-          {/* Active Roster / Team Card */}
+          {/* Team Card */}
           <div className="bg-gradient-to-b from-[#151922] to-[#111111] border border-gray-800 rounded-xl p-5 shadow-sm">
             <h3 className="text-sm font-bold text-white uppercase tracking-wide mb-4">
               <i className="fas fa-users text-indigo-400 mr-2"></i> Active Roster
             </h3>
-            
             {!userTeam ? (
               <div className="text-center py-4">
                 <div className="w-12 h-12 bg-gray-900 rounded-full flex items-center justify-center mx-auto mb-3 border border-gray-800">
@@ -317,7 +279,6 @@ const PlayerPanel = ({ profile, rating, userId }) => {
                     <span className="text-[9px] text-gray-500 uppercase tracking-widest">Team Elo</span>
                   </div>
                 </div>
-                
                 <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-800">
                   {userTeam.regionCode && (
                     <span className="bg-slate-900/50 text-slate-400 border border-slate-700/50 text-[10px] px-2 py-0.5 rounded font-bold">
@@ -360,7 +321,7 @@ const PlayerPanel = ({ profile, rating, userId }) => {
             </div>
           )}
 
-          {/* Micro Activity Log */}
+          {/* Event Log */}
           <div className="bg-[#111111] border border-gray-800 rounded-xl p-5 shadow-sm">
             <h3 className="text-sm font-bold text-white uppercase tracking-wide mb-4">
               <i className="fas fa-list-ul text-indigo-400 mr-2"></i> Event Log

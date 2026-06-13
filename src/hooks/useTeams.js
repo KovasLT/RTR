@@ -285,8 +285,15 @@ export const useTeamMutations = () => {
 
   const removeMember = useMutation({
     mutationFn: ({ teamId, userId }) =>
-    unwrap(supabase.rpc('remove_team_member', { p_team_id: teamId, p_user_id: userId })),
-                                   onSuccess: invalidate,
+    unwrap(
+      supabase
+      .from('team_members')
+      .update({ left_at: new Date().toISOString() })
+      .eq('team_id', teamId)
+      .eq('user_id', userId)
+      .is('left_at', null) // only update if not already left
+    ),
+    onSuccess: invalidate,
   });
 
   const addStaff = useMutation({
