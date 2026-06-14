@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase } from '../lib/supabase';
 import { useMyTeams, useMyMemberships } from '../hooks/useTeams.js';
+import { getParticipantName } from '../components/tournament-manager/utils';
 
 export default function TournamentsPanel() {
   const { user } = useAuth();
@@ -15,11 +16,158 @@ export default function TournamentsPanel() {
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [registeringFor, setRegisteringFor] = useState(null);
   const [registerLoading, setRegisterLoading] = useState(false);
+  const [scheduledMatchesMap, setScheduledMatchesMap] = useState({});
+  const [reportedMatchesMap, setReportedMatchesMap] = useState({});
+  const [bracketAssignmentsMap, setBracketAssignmentsMap] = useState({});
 
   const userTeams = [
     ...myManagedTeams.map(t => ({ id: t.id, name: t.name })),
     ...myMemberships.filter(m => m.isCaptain).map(m => ({ id: m.teamId, name: m.name }))
   ].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+
+  // ---------- Fetch participants (same as manager) ----------
+  const fetchParticipantsForTournament = async (tournamentId, type) => {
+    try {
+      if (type === 'team') {
+        const { data: teamEntries, error: teamEntriesError } = await supabase
+          .from('tournament_teams')
+          .select('team_id, placement')
+          .eq('tournament_id', tournamentId);
+        if (teamEntriesError) throw teamEntriesError;
+        if (!teamEntries || teamEntries.length === 0) return [];
+        const teamIds = teamEntries.map(e => e.team_id);
+        const { data: teamsData, error: teamsError } = await supabase
+          .from('teams')
+          .select('id, name, tag')
+          .in('id', teamIds);
+        if (teamsError) throw teamsError;
+        const merged = teamEntries.map(entry => ({
+          team_id: entry.team_id,
+          placement: entry.placement,
+          teams: teamsData.find(t => t.id === entry.team_id) || { id: entry.team_id, name: 'Unknown', tag: '' }
+        }));
+        return merged;
+      } else {
+        const { data: playerEntries, error: playerEntriesError } = await supabase
+          .from('tournament_players')
+          .select('player_id, placement')
+          .eq('tournament_id', tournamentId);
+        if (playerEntriesError) throw playerEntriesError;
+        if (!playerEntries || playerEntries.length === 0) return [];
+        const playerIds = playerEntries.map(e => e.player_id);
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, display_name, handle, avatar_url')
+          .in('id', playerIds);
+        if (profilesError) throw profilesError;
+        const merged = playerEntries.map(entry => ({
+          player_id: entry.player_id,
+          placement: entry.placement,
+          profiles: profilesData.find(p => p.id === entry.player_id) || { id: entry.player_id, display_name: 'Unknown', handle: '' }
+        }));
+        return merged;
+      }
+    } catch (err) {
+      console.error('Error fetching participants for public view:', err);
+      return [];
+    }
+  };
+
+  // ---------- Fetch bracket assignments ----------
+  const fetchBracketAssignments = async (tournamentId) => {
+    const { data, error } = await supabase
+      .from('tournament_brackets')
+      .select('*')
+      .eq('tournament_id', tournamentId);
+    if (error) {
+      console.error('Error fetching bracket assignments:', error);
+      return {};
+    }
+    const assignments = {};
+    data.forEach(assign => {
+      const key = `${assign.bracket_type}-${assign.round_index}-${assign.slot_index}`;
+      assignments[key] = assign.match_id;
+    });
+    return assignments;
+  };
+
+  // ---------- Build bracket state from assignments ----------
+  const buildBracketState = (assignments, reportedMatches) => {
+    // Define the same structure as manager
+    const bracketState = {
+      single: [
+        { roundName: "Quarterfinals", slots: [{ matchId: '' }, { matchId: '' }, { matchId: '' }, { matchId: '' }] },
+        { roundName: "Semifinals", slots: [{ matchId: '' }, { matchId: '' }] },
+        { roundName: "Finals", slots: [{ matchId: '' }] }
+      ],
+      upper: [
+        { roundName: "UB Semifinals", slots: [{ matchId: '' }, { matchId: '' }] },
+        { roundName: "UB Finals", slots: [{ matchId: '' }] }
+      ],
+      lower: [
+        { roundName: "LB Round 1", slots: [{ matchId: '' }, { matchId: '' }] },
+        { roundName: "LB Finals", slots: [{ matchId: '' }] }
+      ],
+      grand: [
+        { roundName: "Grand Finals", slots: [{ matchId: '' }] }
+      ]
+    };
+
+    for (const [key, matchId] of Object.entries(assignments)) {
+      const [bracketType, roundIdx, slotIdx] = key.split('-');
+      if (bracketState[bracketType] && bracketState[bracketType][parseInt(roundIdx)]) {
+        bracketState[bracketType][parseInt(roundIdx)].slots[parseInt(slotIdx)].matchId = matchId;
+      }
+    }
+    return bracketState;
+  };
+
+  // ---------- Render bracket section (no dropdowns, just display) ----------
+  const renderBracketSection = (bracketArray, bracketKey, reportedMatches, participants, tournamentType, title) => {
+    return (
+      <div className="mb-10">
+        {title && <h5 className="text-xs font-bold text-indigo-400 mb-6 uppercase border-b border-gray-800 pb-2 inline-block">{title}</h5>}
+        <div className="flex flex-row justify-between gap-8 py-4 relative">
+          {bracketArray.map((round, rIdx) => (
+            <div key={round.roundName} className="flex flex-col justify-around flex-1 relative">
+              <h6 className="text-center text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-6 absolute -top-8 w-full">{round.roundName}</h6>
+              {round.slots.map((slot, sIdx) => {
+                const assignedMatch = reportedMatches.find(m => m.id === slot.matchId);
+                return (
+                  <div key={`${rIdx}-${sIdx}`} className="my-2 flex flex-col relative z-10 bg-[#1a1c23] border border-gray-700 rounded-lg shadow-md">
+                    {rIdx < bracketArray.length - 1 && <div className="absolute w-4 h-[2px] bg-gray-700 -right-4 top-1/2"></div>}
+                    <div className="bg-[#0f1219] border-b border-gray-800 p-1.5 rounded-t-lg">
+                      <div className="text-[10px] text-indigo-300 font-bold text-center">
+                        {assignedMatch ? 'Match' : 'Slot empty'}
+                      </div>
+                    </div>
+                    <div className="p-3 space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className={`truncate w-3/4 ${assignedMatch && assignedMatch.score_team_a > assignedMatch.score_team_b ? 'text-white font-bold' : 'text-gray-400'}`}>
+                          {assignedMatch ? getParticipantName(assignedMatch.team_a_id, participants, tournamentType) : '---'}
+                        </span>
+                        <span className="font-mono text-gray-400 bg-gray-800/50 px-1.5 py-0.5 rounded">
+                          {assignedMatch ? assignedMatch.score_team_a : '-'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className={`truncate w-3/4 ${assignedMatch && assignedMatch.score_team_b > assignedMatch.score_team_a ? 'text-white font-bold' : 'text-gray-400'}`}>
+                          {assignedMatch ? getParticipantName(assignedMatch.team_b_id, participants, tournamentType) : '---'}
+                        </span>
+                        <span className="font-mono text-gray-400 bg-gray-800/50 px-1.5 py-0.5 rounded">
+                          {assignedMatch ? assignedMatch.score_team_b : '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const fetchAverageRating = async (ids, type) => {
     if (!ids.length) return null;
@@ -48,53 +196,38 @@ export default function TournamentsPanel() {
         return;
       }
 
-      const enriched = await Promise.all(
+      const tournamentsWithDetails = await Promise.all(
         tournamentsData.map(async (tournament) => {
-          let participants = [];
+          const participants = await fetchParticipantsForTournament(tournament.id, tournament.tournament_type);
           let avgRating = null;
-
-          // Determine if tournament is 1v1 (player) or 5v5 (team)
-          const isPlayerTournament = tournament.tournament_type === 'player' || tournament.tournament_type === '1v1';
-
-          if (isPlayerTournament) {
-            const { data: players, error: pErr } = await supabase
-              .from('tournament_players')
-              .select(`
-                player_id,
-                placement,
-                player:profiles!player_id(display_name, handle)
-              `)
-              .eq('tournament_id', tournament.id);
-            if (!pErr && players) {
-              participants = players;
-              const playerIds = players.map(p => p.player_id);
-              avgRating = await fetchAverageRating(playerIds, 'player');
-            } else if (pErr) console.error(pErr);
-          } else {
-            const { data: teamLinks, error: tErr } = await supabase
-              .from('tournament_teams')
-              .select('team_id, placement')
-              .eq('tournament_id', tournament.id);
-            if (!tErr && teamLinks && teamLinks.length) {
-              const teamIds = teamLinks.map(tl => tl.team_id);
-              const { data: teamsData, error: teamsErr } = await supabase
-                .from('teams')
-                .select('id, name, tag')
-                .in('id', teamIds);
-              if (!teamsErr && teamsData) {
-                participants = teamLinks.map(tl => ({
-                  team_id: tl.team_id,
-                  placement: tl.placement,
-                  team: teamsData.find(t => t.id === tl.team_id)
-                }));
-                avgRating = await fetchAverageRating(teamIds, 'team');
-              } else if (teamsErr) console.error(teamsErr);
-            } else if (tErr) console.error(tErr);
+          if (participants.length) {
+            const ids = participants.map(p => p.team_id || p.player_id);
+            avgRating = await fetchAverageRating(ids, tournament.tournament_type === 'team' ? 'team' : 'player');
           }
+
+          const { data: scheduledData } = await supabase
+            .from('scheduled_matches')
+            .select('*')
+            .eq('tournament_id', tournament.id)
+            .order('scheduled_time', { ascending: true });
+          setScheduledMatchesMap(prev => ({ ...prev, [tournament.id]: scheduledData || [] }));
+
+          const { data: reportedData } = await supabase
+            .from('matches')
+            .select('*')
+            .eq('tournament_id', tournament.id)
+            .not('score_team_a', 'is', null)
+            .not('score_team_b', 'is', null)
+            .order('created_at', { ascending: true });
+          setReportedMatchesMap(prev => ({ ...prev, [tournament.id]: reportedData || [] }));
+
+          const assignments = await fetchBracketAssignments(tournament.id);
+          setBracketAssignmentsMap(prev => ({ ...prev, [tournament.id]: assignments }));
+
           return { ...tournament, participants, avgParticipantRating: avgRating };
         })
       );
-      setTournaments(enriched);
+      setTournaments(tournamentsWithDetails);
     } catch (err) {
       console.error(err);
       setError(err.message);
@@ -161,7 +294,6 @@ export default function TournamentsPanel() {
         return (
           <div key={tournament.id} className="group relative bg-gradient-to-br from-gray-900 via-gray-900 to-gray-950 border border-gray-800 rounded-2xl shadow-xl overflow-hidden transition-all duration-300 hover:border-indigo-500/40 hover:shadow-indigo-500/10">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-
             <div className="p-5 md:p-6">
               <div className="flex flex-wrap justify-between items-start gap-4">
                 <div className="flex-1">
@@ -256,28 +388,120 @@ export default function TournamentsPanel() {
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {selectedTournament.participants?.length > 0 ? (
-                    selectedTournament.participants.map(p => (
-                      <span key={p.team_id || p.player_id} className="bg-gray-800/60 border border-gray-700 px-3 py-1.5 rounded-full text-sm text-gray-300">
-                        {(selectedTournament.tournament_type === 'player' || selectedTournament.tournament_type === '1v1')
-                          ? (p.player?.display_name || p.player?.handle || 'Unknown')
-                          : `${p.team?.name} ${p.team?.tag ? `[${p.team.tag}]` : ''}`
-                        }
-                        {p.placement && <span className="text-amber-400 ml-1">(#{p.placement})</span>}
-                      </span>
-                    ))
+                    selectedTournament.participants.map(p => {
+                      const id = p.team_id || p.player_id;
+                      const name = getParticipantName(id, selectedTournament.participants, selectedTournament.tournament_type);
+                      return (
+                        <span key={p.team_id || p.player_id} className="bg-gray-800/60 border border-gray-700 px-3 py-1.5 rounded-full text-sm text-gray-300">
+                          {name}
+                          {p.placement && <span className="text-amber-400 ml-1">(#{p.placement})</span>}
+                        </span>
+                      );
+                    })
                   ) : (
                     <span className="text-gray-500">No participants yet.</span>
                   )}
                 </div>
               </div>
 
-              {/* Matches (if ongoing) */}
-              {selectedTournament.status === 'ongoing' && (
-                <div>
-                  <h3 className="text-white font-semibold text-lg mb-3">Matches</h3>
+              {/* Schedule */}
+              <div>
+                <h3 className="text-white font-semibold text-lg mb-3">Schedule</h3>
+                {scheduledMatchesMap[selectedTournament.id]?.length === 0 ? (
+                  <p className="text-gray-500">No scheduled matches.</p>
+                ) : (
                   <div className="space-y-2">
-                    <p className="text-gray-500 text-sm">Match data will appear once reported.</p>
+                    {scheduledMatchesMap[selectedTournament.id]?.map(m => {
+                      const p1Name = getParticipantName(m.participant_a_id, selectedTournament.participants, selectedTournament.tournament_type);
+                      const p2Name = getParticipantName(m.participant_b_id, selectedTournament.participants, selectedTournament.tournament_type);
+                      return (
+                        <div key={m.id} className="bg-gray-800/50 rounded-lg p-3 flex justify-between items-center">
+                          <div className="flex items-center gap-3">
+                            <span className="text-white font-medium">{p1Name}</span>
+                            <span className="text-gray-400">vs</span>
+                            <span className="text-white font-medium">{p2Name}</span>
+                          </div>
+                          <div className="text-gray-300">{new Date(m.scheduled_time).toLocaleString()}</div>
+                        </div>
+                      );
+                    })}
                   </div>
+                )}
+              </div>
+
+              {/* Bracket / Standings */}
+              {selectedTournament.format !== 'round_robin' && (
+                <div>
+                  <h3 className="text-white font-semibold text-lg mb-3">Bracket</h3>
+                  {(() => {
+                    const assignments = bracketAssignmentsMap[selectedTournament.id] || {};
+                    const bracketState = buildBracketState(assignments, reportedMatchesMap[selectedTournament.id] || []);
+                    const reportedMatches = reportedMatchesMap[selectedTournament.id] || [];
+                    const participants = selectedTournament.participants;
+                    const tournamentType = selectedTournament.tournament_type;
+                    return (
+                      <div className="overflow-x-auto">
+                        {selectedTournament.format === 'playoffs' && renderBracketSection(bracketState.single, 'single', reportedMatches, participants, tournamentType, null)}
+                        {selectedTournament.format === 'double_elimination' && (
+                          <div className="space-y-8">
+                            {renderBracketSection(bracketState.upper, 'upper', reportedMatches, participants, tournamentType, 'Upper Bracket')}
+                            {renderBracketSection(bracketState.lower, 'lower', reportedMatches, participants, tournamentType, 'Lower Bracket')}
+                            {renderBracketSection(bracketState.grand, 'grand', reportedMatches, participants, tournamentType, 'Grand Finals')}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {selectedTournament.format === 'round_robin' && (
+                <div>
+                  <h3 className="text-white font-semibold text-lg mb-3">Standings</h3>
+                  {reportedMatchesMap[selectedTournament.id]?.length === 0 ? (
+                    <p className="text-gray-500">No matches reported yet.</p>
+                  ) : (
+                    <table className="w-full text-sm text-gray-400">
+                      <thead>
+                        <tr className="text-left border-b border-gray-700">
+                          <th className="py-2">Participant</th>
+                          <th className="py-2 text-center">Played</th>
+                          <th className="py-2 text-center">W</th>
+                          <th className="py-2 text-center">L</th>
+                          <th className="py-2 text-center">Pts</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const stats = {};
+                          selectedTournament.participants.forEach(p => {
+                            const id = p.team_id || p.player_id;
+                            stats[id] = {
+                              name: getParticipantName(id, selectedTournament.participants, selectedTournament.tournament_type),
+                              played: 0, w: 0, l: 0, pts: 0
+                            };
+                          });
+                          (reportedMatchesMap[selectedTournament.id] || []).forEach(m => {
+                            const p1 = m.team_a_id, p2 = m.team_b_id, s1 = m.score_team_a, s2 = m.score_team_b;
+                            if (!stats[p1] || !stats[p2]) return;
+                            stats[p1].played++; stats[p2].played++;
+                            if (s1 > s2) { stats[p1].w++; stats[p1].pts += 3; stats[p2].l++; }
+                            else if (s2 > s1) { stats[p2].w++; stats[p2].pts += 3; stats[p1].l++; }
+                          });
+                          const sorted = Object.values(stats).sort((a,b) => b.pts - a.pts || b.w - a.w);
+                          return sorted.map(stat => (
+                            <tr key={stat.name} className="border-b border-gray-800/50">
+                              <td className="py-2 font-medium text-white">{stat.name}</td>
+                              <td className="py-2 text-center">{stat.played}</td>
+                              <td className="py-2 text-center text-green-400">{stat.w}</td>
+                              <td className="py-2 text-center text-red-400">{stat.l}</td>
+                              <td className="py-2 text-center font-bold text-indigo-400">{stat.pts}</td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               )}
             </div>
@@ -289,15 +513,9 @@ export default function TournamentsPanel() {
       {showRegisterModal && registeringFor && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowRegisterModal(false)}>
           <div className="bg-gray-900 rounded-2xl max-w-md w-full p-6 border border-gray-800" onClick={e => e.stopPropagation()}>
-            <h3 className="text-xl font-bold text-white mb-4">
-              Register for {registeringFor.title}
-            </h3>
+            <h3 className="text-xl font-bold text-white mb-4">Register for {registeringFor.title}</h3>
             {(registeringFor.tournament_type === 'player' || registeringFor.tournament_type === '1v1') ? (
-              <button
-                onClick={() => handleRegister(registeringFor.id, user.id, 'player')}
-                disabled={registerLoading}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg font-semibold transition disabled:opacity-50"
-              >
+              <button onClick={() => handleRegister(registeringFor.id, user.id, 'player')} disabled={registerLoading} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg font-semibold transition disabled:opacity-50">
                 {registerLoading ? 'Registering...' : 'Register as a player'}
               </button>
             ) : (
@@ -306,24 +524,14 @@ export default function TournamentsPanel() {
                   <p className="text-gray-400 text-sm">You are not a manager or captain of any team.</p>
                 ) : (
                   userTeams.map(team => (
-                    <button
-                      key={team.id}
-                      onClick={() => handleRegister(registeringFor.id, team.id, 'team')}
-                      disabled={registerLoading}
-                      className="w-full text-left bg-gray-800 hover:bg-gray-700 p-3 rounded-lg transition disabled:opacity-50"
-                    >
+                    <button key={team.id} onClick={() => handleRegister(registeringFor.id, team.id, 'team')} disabled={registerLoading} className="w-full text-left bg-gray-800 hover:bg-gray-700 p-3 rounded-lg transition disabled:opacity-50">
                       {team.name}
                     </button>
                   ))
                 )}
               </div>
             )}
-            <button
-              onClick={() => setShowRegisterModal(false)}
-              className="w-full mt-3 text-gray-400 hover:text-white py-2 rounded-lg transition"
-            >
-              Cancel
-            </button>
+            <button onClick={() => setShowRegisterModal(false)} className="w-full mt-3 text-gray-400 hover:text-white py-2 rounded-lg transition">Cancel</button>
           </div>
         </div>
       )}
