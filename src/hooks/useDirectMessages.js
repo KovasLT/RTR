@@ -60,14 +60,16 @@ export function useConversations() {
 
         fetchConversations();
 
-        const subscription = supabase
+        // Real-time updates for conversations – correct order: add listeners then subscribe
+        const channel = supabase
         .channel('conversations-channel')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversations' }, fetchConversations)
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations' }, fetchConversations)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, fetchConversations)
-        .subscribe();
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, fetchConversations);
 
-        return () => subscription.unsubscribe();
+        channel.subscribe();
+
+        return () => channel.unsubscribe();
     }, [user]);
 
     return { conversations, loading };
@@ -91,7 +93,6 @@ export function useMessages(conversationId, recipientId) {
         if (!error) setMessages(data || []);
     }, []);
 
-        // Mark all unread messages in this conversation as read
         const markAsRead = useCallback(async (convId) => {
             if (!convId) return;
             const { error } = await supabase
@@ -104,7 +105,7 @@ export function useMessages(conversationId, recipientId) {
         }, [user.id]);
 
             useEffect(() => {
-                let subscription = null;
+                let channel = null;
 
                 const init = async () => {
                     let convId = conversationId;
@@ -129,24 +130,24 @@ export function useMessages(conversationId, recipientId) {
 
                     if (convId) {
                         await fetchMessages(convId);
-                        // Mark messages as read immediately when conversation is opened
                         await markAsRead(convId);
-                        subscription = supabase
-                        .channel(`messages:${convId}`)
-                        .subscribe();
 
-                        subscription.on('postgres_changes', {
+                        // Create channel and add listener BEFORE subscribe
+                        channel = supabase
+                        .channel(`messages:${convId}`)
+                        .on('postgres_changes', {
                             event: 'INSERT',
                             schema: 'public',
                             table: 'messages',
                             filter: `conversation_id=eq.${convId}`
                         }, async (payload) => {
                             setMessages(prev => [...prev, payload.new]);
-                            // If the new message is for current user, mark it as read immediately
                             if (payload.new.receiver_id === user.id && !payload.new.is_read) {
                                 await supabase.from('messages').update({ is_read: true }).eq('id', payload.new.id);
                             }
                         });
+
+                        channel.subscribe();
                     }
                     setLoading(false);
                 };
@@ -154,7 +155,7 @@ export function useMessages(conversationId, recipientId) {
                 init();
 
                 return () => {
-                    if (subscription) subscription.unsubscribe();
+                    if (channel) channel.unsubscribe();
                 };
             }, [conversationId, recipientId, user.id, fetchMessages, markAsRead]);
 
@@ -216,7 +217,7 @@ export function useMessages(conversationId, recipientId) {
             return { messages, loading, sendMessage, sending };
 }
 
-// Hook to get total unread count for the current user (for badge)
+// Hook to get total unread count for the current user (polling version, no realtime errors)
 export function useUnreadCount() {
     const { user } = useAuth();
     const [unreadCount, setUnreadCount] = useState(0);
@@ -233,25 +234,9 @@ export function useUnreadCount() {
 
         useEffect(() => {
             fetchUnread();
-
-            const subscription = supabase
-            .channel('unread-count')
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'messages',
-                filter: `receiver_id=eq.${user?.id}`
-            }, () => fetchUnread())
-            .on('postgres_changes', {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'messages',
-                filter: `receiver_id=eq.${user?.id}`
-            }, () => fetchUnread())
-            .subscribe();
-
-            return () => subscription.unsubscribe();
-        }, [user, fetchUnread]);
+            const interval = setInterval(fetchUnread, 10000);
+            return () => clearInterval(interval);
+        }, [fetchUnread]);
 
         return { unreadCount };
 }

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMessages } from '../hooks/useDirectMessages';
 import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
+import InvitationMessage from './InvitationMessage';
 
 export default function ChatWindow({ conversationId, recipient }) {
   const { user } = useAuth();
@@ -47,6 +49,20 @@ export default function ChatWindow({ conversationId, recipient }) {
           <div className="text-gray-500 text-center mt-8">No messages yet. Say hello!</div>
         ) : (
           messages.map(msg => {
+            // System message with invitation actions
+            if (msg.is_system && msg.invitation_id) {
+              return (
+                <div key={msg.id} className="flex justify-center my-2">
+                  <InvitationMessage
+                    message={msg}
+                    invitationId={msg.invitation_id}
+                    actionData={msg.action_data}
+                  />
+                </div>
+              );
+            }
+
+            // Normal message
             const isMe = msg.sender_id === user.id;
             const isTemp = msg.id?.startsWith('temp-');
             return (

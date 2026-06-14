@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function InvitationsTab({ tournamentId, tournamentType }) {
+  const { user } = useAuth();
   const [invites, setInvites] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -10,7 +12,9 @@ export default function InvitationsTab({ tournamentId, tournamentType }) {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    fetchInvites();
+    if (tournamentId) {
+      fetchInvites();
+    }
   }, [tournamentId]);
 
   const fetchInvites = async () => {
@@ -30,34 +34,92 @@ export default function InvitationsTab({ tournamentId, tournamentType }) {
     setLoading(true);
     const { data, error } = await supabase
       .from('teams')
-      .select('id, name, tag')
+      .select('id, name, tag, manager_id')
       .ilike('name', `%${searchTerm}%`)
       .limit(10);
     if (!error) setSearchResults(data);
     setLoading(false);
   };
 
-  const sendInvite = async (teamId) => {
+  const sendInvite = async (team) => {
+    if (!team?.id) return;
     setSending(true);
-    const { data: user } = await supabase.auth.getUser();
-    const { error } = await supabase
-      .from('tournament_invitations')
-      .insert({
-        tournament_id: tournamentId,
-        team_id: teamId,
-        message: message || null,
-        invited_by: user.user.id,
-        status: 'pending'
-      });
-    if (error) alert(error.message);
-    else {
+    try {
+      // 1. Create invitation record
+      const { data: invite, error: inviteError } = await supabase
+        .from('tournament_invitations')
+        .insert({
+          tournament_id: tournamentId,
+          team_id: team.id,
+          message: message || null,
+          invited_by: user.id,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (inviteError) throw new Error(inviteError.message);
+
+      // 2. Send a direct message to the team manager
+      const managerId = team.manager_id;
+      if (managerId) {
+        // Get tournament details
+        const { data: tournament } = await supabase
+          .from('tournaments')
+          .select('title, format, start_date')
+          .eq('id', tournamentId)
+          .single();
+
+        // Find or create conversation
+        let conversationId;
+        const { data: existing } = await supabase
+          .from('conversations')
+          .select('id')
+          .or(`and(user1_id.eq.${user.id},user2_id.eq.${managerId}),and(user1_id.eq.${managerId},user2_id.eq.${user.id})`)
+          .maybeSingle();
+
+        if (existing) {
+          conversationId = existing.id;
+        } else {
+          const { data: newConv, error: convError } = await supabase
+            .from('conversations')
+            .insert({ user1_id: user.id, user2_id: managerId })
+            .select()
+            .single();
+          if (convError) throw new Error(convError.message);
+          conversationId = newConv.id;
+        }
+
+        // Insert system message
+        await supabase.from('messages').insert({
+          conversation_id: conversationId,
+          sender_id: user.id,
+          receiver_id: managerId,
+          message: `🏆 **Tournament Invitation**\n\nYou've been invited to **${tournament?.title}** (${tournament?.format?.replace('_', ' ') || 'Tournament'}).\n\n${message ? `Message: "${message}"\n\n` : ''}Starts: ${tournament?.start_date}`,
+          is_system: true,
+          invitation_id: invite.id,
+          action_data: {
+            tournament_id: tournamentId,
+            team_id: team.id,
+            invite_id: invite.id,
+            tournament_title: tournament?.title,
+            accept_action: 'accept_invite',
+            decline_action: 'decline_invite'
+          }
+        });
+      }
+
       alert('Invitation sent!');
       setSearchTerm('');
       setMessage('');
       setSearchResults([]);
-      fetchInvites();
+      await fetchInvites();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to send invitation');
+    } finally {
+      setSending(false);
     }
-    setSending(false);
   };
 
   const updateInviteStatus = async (inviteId, newStatus) => {
@@ -100,7 +162,7 @@ export default function InvitationsTab({ tournamentId, tournamentType }) {
                   {team.tag && <span className="text-gray-400 text-sm ml-2">[{team.tag}]</span>}
                 </div>
                 <button
-                  onClick={() => sendInvite(team.id)}
+                  onClick={() => sendInvite(team)}
                   disabled={sending}
                   className="bg-green-600 hover:bg-green-500 text-white text-xs px-3 py-1 rounded"
                 >
