@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useMyMemberships } from '../hooks/useTeams.js';
 import { useRatingHistory, usePlayerMutations } from '../hooks/useProfiles.js';
+import { useAuth } from '../hooks/useAuth.jsx';
+import { useChat } from './ChatContext';
 import { supabase } from '../lib/supabase';
 import Sparkline from './Sparkline';
 
@@ -10,6 +12,8 @@ const winProbability = (ratingA, ratingB) => {
 };
 
 const PlayerPanel = ({ profile, rating, userId }) => {
+  const { user } = useAuth();
+  const { openChatWith } = useChat();
   const p = profile?.player;
   const { data: teams = [] } = useMyMemberships(userId);
   const { data: history = [] } = useRatingHistory('player', userId);
@@ -28,15 +32,10 @@ const PlayerPanel = ({ profile, rating, userId }) => {
     const fetchAllMatches = async () => {
       setLoadingExtra(true);
       try {
-        // 1. Combined matches (team + player)
-        const { data: matches, error } = await supabase.rpc('get_user_matches', {
-          p_user_id: userId,
-        });
+        const { data: matches, error } = await supabase.rpc('get_user_matches', { p_user_id: userId });
         if (error) throw error;
-
         const allMatches = matches || [];
         setMatchesPlayed(allMatches.length);
-
         let w = 0, l = 0;
         allMatches.forEach(m => {
           if (m.user_score > m.opponent_score) w++;
@@ -46,9 +45,7 @@ const PlayerPanel = ({ profile, rating, userId }) => {
         setLosses(l);
         setRecentMatches(allMatches.slice(0, 4));
 
-        // 2. Tournament placements (team + player)
         let placements = [];
-        // Team placements (from team tournaments)
         if (userTeam) {
           const { data: teamPl } = await supabase
             .from('tournament_teams')
@@ -57,7 +54,6 @@ const PlayerPanel = ({ profile, rating, userId }) => {
             .not('placement', 'is', null);
           if (teamPl) placements.push(...teamPl);
         }
-        // Player placements (from 1v1 tournaments)
         const { data: playerPl } = await supabase
           .from('tournament_players')
           .select('placement, tournament:tournaments(title)')
@@ -91,7 +87,7 @@ const PlayerPanel = ({ profile, rating, userId }) => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Hero Section (unchanged) */}
+      {/* Hero Section */}
       <div className="relative bg-gradient-to-br from-[#1a1f35] to-[#111111] border border-indigo-500/20 rounded-2xl p-6 overflow-hidden shadow-lg">
         <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-600/10 blur-3xl rounded-full pointer-events-none"></div>
         <div className="relative flex flex-col md:flex-row items-center md:items-start gap-6">
@@ -109,12 +105,21 @@ const PlayerPanel = ({ profile, rating, userId }) => {
               <div className="flex items-center gap-2"><i className="fas fa-shield-alt text-gray-500"></i><span className="text-gray-300 font-medium">Sec: <span className="text-white">{p?.secondary_lane?.name || '—'}</span></span></div>
             </div>
           </div>
-          <div className="mt-4 md:mt-0 flex flex-col items-center md:items-end justify-center min-w-[140px]">
-            <span className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-2">Recruitment Status</span>
-            <button onClick={handleToggleLooking} disabled={setLookingForTeam.isPending} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm border ${p?.looking_for_team ? 'bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/20' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'}`}>
+          <div className="mt-4 md:mt-0 flex flex-col items-center md:items-end justify-center min-w-[140px] gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">Recruitment Status</span>
+            <button onClick={handleToggleLooking} disabled={setLookingForTeam.isPending} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm border w-full justify-center ${p?.looking_for_team ? 'bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500/20' : 'bg-gray-800 text-gray-400 border-gray-700 hover:bg-gray-700'}`}>
               <i className={`fas ${p?.looking_for_team ? 'fa-search' : 'fa-lock'}`}></i>
               {setLookingForTeam.isPending ? 'Updating...' : (p?.looking_for_team ? 'L.F.T Active' : 'Not Looking')}
             </button>
+            {/* Contact Player button – only show if viewing another player */}
+            {user?.id !== userId && (
+              <button
+                onClick={() => openChatWith({ id: userId, display_name: displayName })}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white w-full justify-center"
+              >
+                <i className="fas fa-comment"></i> Contact Player
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -127,7 +132,7 @@ const PlayerPanel = ({ profile, rating, userId }) => {
         <div className="bg-[#151922] border border-gray-800/80 rounded-xl p-4 flex flex-col items-center justify-center"><span className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-1">Matches Played</span><span className="text-3xl font-black text-gray-300">{matchesPlayed || '—'}</span></div>
       </div>
 
-      {/* Main Content Split */}
+      {/* Main Content Split – unchanged */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Left Column */}
         <div className="xl:col-span-2 space-y-6">
@@ -185,7 +190,7 @@ const PlayerPanel = ({ profile, rating, userId }) => {
             </div>}
           </div>
 
-          {/* Tournament Achievements (both team and player) */}
+          {/* Tournament Achievements */}
           {!loadingExtra && tournamentPlacements.length > 0 && (
             <div className="bg-[#111111] border border-gray-800 rounded-xl p-5 shadow-sm">
               <h3 className="text-sm font-bold text-white uppercase tracking-wide mb-4"><i className="fas fa-medal text-amber-400 mr-2"></i> Hardware</h3>

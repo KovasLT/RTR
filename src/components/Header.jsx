@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { APP_CONSTANTS } from '../app-constants';
 import { useAuth } from '../hooks/useAuth.jsx';
+import { useChat } from './ChatContext';
+import { useUnreadCount } from '../hooks/useDirectMessages';
 
 const NAV = APP_CONSTANTS.NAV;
 
@@ -14,19 +16,13 @@ const NAV_LINKS = [
   { to: '/community', label: NAV.INFORMATION },
 ];
 
-/**
- * Header Component
- *
- * Sticky top navigation: brand, centered primary nav, and a right-hand auth
- * cluster. When signed in, the per-user actions (Dashboard, Admin, Profile,
- * Edit, Logout) collapse into a single avatar dropdown to keep the bar
- * uncluttered. A hamburger panel covers smaller screens.
- */
 const Header = () => {
   const location = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
-  const [menuOpen, setMenuOpen] = useState(false); // user dropdown (desktop)
-  const [mobileOpen, setMobileOpen] = useState(false); // mobile panel
+  const { openChatWith } = useChat();
+  const { unreadCount } = useUnreadCount();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const isActiveRoute = (path, exact) =>
     exact ? location.pathname === path : location.pathname.startsWith(path);
@@ -51,7 +47,6 @@ const Header = () => {
     </span>
   );
 
-  // The per-user links shared by the desktop dropdown and the mobile panel.
   const userLinks = (
     <>
       <Link to="/dashboard" onClick={closeAll} className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white">
@@ -68,6 +63,23 @@ const Header = () => {
       <Link to="/profile/edit" onClick={closeAll} className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white">
         <i className="fas fa-user-pen w-4 text-center"></i>{NAV.EDIT_PROFILE}
       </Link>
+      <button
+        onClick={() => {
+          closeAll();
+          openChatWith(null);
+        }}
+        className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white w-full text-left"
+      >
+        <div className="flex items-center gap-3">
+          <i className="fas fa-comments w-4 text-center"></i>
+          Messages
+        </div>
+        {unreadCount > 0 && (
+          <span className="bg-indigo-600 text-white text-xs font-bold rounded-full px-2 py-0.5 min-w-[1.5rem] text-center">
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+      </button>
       <div className="my-1 h-px bg-gray-800"></div>
       <button
         onClick={() => { closeAll(); logout(); }}
@@ -112,11 +124,17 @@ const Header = () => {
             <div className="relative hidden lg:block">
               <button
                 onClick={() => setMenuOpen((o) => !o)}
-                className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg text-sm font-medium text-gray-200 hover:bg-gray-800 transition-colors"
+                className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg text-sm font-medium text-gray-200 hover:bg-gray-800 transition-colors relative"
               >
                 {avatar}
                 <span className="max-w-[10rem] truncate">{user?.username}</span>
                 <i className={`fas fa-chevron-down text-xs text-gray-500 transition-transform ${menuOpen ? 'rotate-180' : ''}`}></i>
+                {/* Notification badge on the avatar button */}
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[1.25rem] px-1 flex items-center justify-center shadow-lg">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
               </button>
 
               {menuOpen && (
@@ -166,6 +184,11 @@ const Header = () => {
                 <div className="flex items-center gap-2 px-4 py-2 text-sm text-gray-400">
                   {avatar}
                   <span className="truncate">{user?.username}</span>
+                  {unreadCount > 0 && (
+                    <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 ml-auto">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
                 </div>
                 {userLinks}
               </>

@@ -27,7 +27,7 @@ import RecentPlacements from '../components/RecentPlacements';
 import PlayerPanel from '../components/PlayerPanel';
 import CoachPanel from '../components/CoachPanel';
 import ScoutPanel from '../components/ScoutPanel';
-import TournamentsPanel from '../components/TournamentsPanel';   // NEW
+import TournamentsPanel from '../components/TournamentsPanel';
 
 const REASON = APP_CONSTANTS.DASHBOARD.RATING_REASONS;
 
@@ -139,7 +139,7 @@ const TeamManagerPanel = ({ rating, userId }) => {
   );
 };
 
-// ScaffoldPanel (kept as is)
+// ScaffoldPanel
 const ScaffoldPanel = ({ title, body, soon, rating, icon }) => (
   <div className="rtr-card">
     <div className="flex items-center justify-between mb-2">
