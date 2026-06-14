@@ -24,6 +24,15 @@ export default function TournamentCreationWizard({ form, setForm, onSubmit, isPe
           </select>
         </div>
         <div>
+          <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Registration Type</label>
+          <select className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white" value={form.registrationType} onChange={e => setForm({...form, registrationType: e.target.value})}>
+            <option value="open">Open (any team can register)</option>
+            <option value="invitational">Invitational (manager sends invites)</option>
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
           <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Rewards / Description</label>
           <input placeholder="Prizes, rules..." className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white" value={form.rewards} onChange={e => setForm({...form, rewards: e.target.value})} />
         </div>

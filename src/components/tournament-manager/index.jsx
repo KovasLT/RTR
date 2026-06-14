@@ -8,6 +8,7 @@ import ScheduleTab from './ScheduleTab';
 import MatchPoolTab from './MatchPoolTab';
 import StandingsTable from './StandingsTable';
 import TournamentList from './TournamentList';
+import InvitationsTab from './InvitationsTab';
 import { getParticipantName } from './utils';
 
 export default function TournamentManagerPanel({ rating, userId }) {
@@ -43,7 +44,8 @@ export default function TournamentManagerPanel({ rating, userId }) {
   });
 
   const [form, setForm] = useState({
-    title: '', tournamentType: 'team', format: 'round_robin', rewards: '', minElo: '', maxElo: '', start: '', end: ''
+    title: '', tournamentType: 'team', format: 'round_robin', rewards: '', minElo: '', maxElo: '', start: '', end: '',
+    registrationType: 'open'
   });
 
   const [editForm, setEditForm] = useState({
@@ -167,10 +169,11 @@ export default function TournamentManagerPanel({ rating, userId }) {
         max_elo: parseInt(form.maxElo) || 3000,
         start_date: form.start,
         end_date: form.end,
+        registration_type: form.registrationType,
         status: 'registration'
       });
       setIsCreating(false);
-      setForm({ title: '', tournamentType: 'team', format: 'round_robin', rewards: '', minElo: '', maxElo: '', start: '', end: '' });
+      setForm({ title: '', tournamentType: 'team', format: 'round_robin', rewards: '', minElo: '', maxElo: '', start: '', end: '', registrationType: 'open' });
     } catch (err) {
       setErrorMsg(err.message || "Failed to create tournament.");
     }
@@ -257,7 +260,6 @@ export default function TournamentManagerPanel({ rating, userId }) {
 
   const saveBracketAssignments = () => {
     console.log("Saving bracket assignments:", bracketState);
-    // TODO: persist to DB (e.g., update tournament_brackets table)
     alert("Bracket assignments saved to console (DB integration pending).");
   };
 
@@ -312,6 +314,7 @@ export default function TournamentManagerPanel({ rating, userId }) {
                 <button onClick={() => setActiveTab('bracket')} className={`text-xs px-3 py-1.5 rounded transition-colors font-semibold ${activeTab === 'bracket' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}>
                   {currentTournament?.format === 'round_robin' ? 'Standings' : 'Layout'}
                 </button>
+                <button onClick={() => setActiveTab('invitations')} className={`text-xs px-3 py-1.5 rounded transition-colors font-semibold ${activeTab === 'invitations' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}>Invitations</button>
               </div>
               <button onClick={() => setActiveTab(activeTab === 'edit' ? 'overview' : 'edit')} className={`text-xs font-semibold rounded px-4 py-1.5 transition-colors border ${activeTab === 'edit' ? 'bg-gray-800 border-gray-600 text-white' : 'bg-gray-800/50 border-gray-700 text-gray-300 hover:bg-gray-700'}`}>
                 {activeTab === 'edit' ? 'Cancel' : 'Edit Rules'}
@@ -359,6 +362,9 @@ export default function TournamentManagerPanel({ rating, userId }) {
           )}
           {activeTab === 'matchpool' && (
             <MatchPoolTab matches={reportedMatches} participants={participants} tournamentType={currentTournament.tournament_type} onToggleFlag={toggleFlagMatch} />
+          )}
+          {activeTab === 'invitations' && (
+            <InvitationsTab tournamentId={selectedTournamentId} tournamentType={currentTournament.tournament_type} />
           )}
 
           {activeTab === 'bracket' && (

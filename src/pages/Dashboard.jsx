@@ -18,7 +18,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Sparkline from '../components/Sparkline';
 import NewsFeed from '../components/NewsFeed';
 import ReportMatch from '../pages/ReportMatch';
-import TournamentManagerPanel from '../components/TournamentManagerPanel';
+import TournamentManagerPanel from '../components/tournament-manager';
 import FindScrims from './FindScrims';
 import RecentMatches from '../components/RecentMatches';
 import RecentSignings from '../components/RecentSignings';
