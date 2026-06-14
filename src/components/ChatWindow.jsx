@@ -57,6 +57,7 @@ export default function ChatWindow({ conversationId, recipient }) {
                     message={msg}
                     invitationId={msg.invitation_id}
                     actionData={msg.action_data}
+                    recipientName={recipientName}
                   />
                 </div>
               );
