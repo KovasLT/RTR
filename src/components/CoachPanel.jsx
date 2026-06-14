@@ -39,12 +39,13 @@ const CoachPanel = ({ profile, rating, userId }) => {
       for (const team of teams) {
         const teamId = team.teamId;
 
-        // Win rate
+        // Win rate – only approved matches
         const { data: allMatches } = await supabase
           .from('matches')
           .select('score_team_a, score_team_b, team_a_id, team_b_id')
           .or(`team_a_id.eq.${teamId},team_b_id.eq.${teamId}`)
-          .eq('status', 'confirmed');
+          .eq('approved', true)
+          .eq('rejected', false);
         let winRate = null;
         let wins = 0, total = 0;
         if (allMatches && allMatches.length) {
@@ -58,7 +59,7 @@ const CoachPanel = ({ profile, rating, userId }) => {
           winRate = Math.round((wins / total) * 100);
         }
 
-        // Recent matches (last 3) – with proper team name extraction
+        // Recent matches – only approved
         const { data: recentMatchesRaw } = await supabase
           .from('matches')
           .select(`
@@ -67,12 +68,12 @@ const CoachPanel = ({ profile, rating, userId }) => {
             team_b:teams!team_b_id(name, tag)
           `)
           .or(`team_a_id.eq.${teamId},team_b_id.eq.${teamId}`)
-          .eq('status', 'confirmed')
+          .eq('approved', true)
+          .eq('rejected', false)
           .order('created_at', { ascending: false })
           .limit(3);
 
         const processedMatches = (recentMatchesRaw || []).map(m => {
-          // Safely extract team objects (handle possible array)
           const teamA = Array.isArray(m.team_a) ? m.team_a[0] : m.team_a;
           const teamB = Array.isArray(m.team_b) ? m.team_b[0] : m.team_b;
 
@@ -117,7 +118,7 @@ const CoachPanel = ({ profile, rating, userId }) => {
           rating: teamRating?.rating || 1200,
         };
 
-        // Team lineup (top 5 players by rating)
+        // Team lineup – unchanged
         const { data: members } = await supabase
           .from('team_members')
           .select(`
@@ -296,7 +297,7 @@ const CoachPanel = ({ profile, rating, userId }) => {
               </div>
             ) : (
               <div className="w-full h-32 px-2 pb-2">
-                <Sparkline values={history.map((h) => h.new_rating)} width={600} height={120} className="w-full h-full opacity-80 group-hover:opacity-100 transition-opacity" />
+                <Sparkline values={history.map((h) => h.new_rating)} width={600} height={120} className="w-full h-20 opacity-80 group-hover:opacity-100 transition-opacity" />
               </div>
             )}
           </div>

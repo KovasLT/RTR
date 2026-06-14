@@ -32,15 +32,19 @@ const PlayerPanel = ({ profile, rating, userId }) => {
     const fetchAllMatches = async () => {
       setLoadingExtra(true);
       try {
+        // We pass the raw userId because our updated SQL function handles both 1v1s and 5v5 team logic
         const { data: matches, error } = await supabase.rpc('get_user_matches', { p_user_id: userId });
+        
         if (error) throw error;
         const allMatches = matches || [];
         setMatchesPlayed(allMatches.length);
+        
         let w = 0, l = 0;
         allMatches.forEach(m => {
           if (m.user_score > m.opponent_score) w++;
           else if (m.user_score < m.opponent_score) l++;
         });
+        
         setWins(w);
         setLosses(l);
         setRecentMatches(allMatches.slice(0, 4));
@@ -132,7 +136,7 @@ const PlayerPanel = ({ profile, rating, userId }) => {
         <div className="bg-[#151922] border border-gray-800/80 rounded-xl p-4 flex flex-col items-center justify-center"><span className="text-gray-500 text-[10px] uppercase font-bold tracking-widest mb-1">Matches Played</span><span className="text-3xl font-black text-gray-300">{matchesPlayed || '—'}</span></div>
       </div>
 
-      {/* Main Content Split – unchanged */}
+      {/* Main Content Split */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Left Column */}
         <div className="xl:col-span-2 space-y-6">
@@ -153,6 +157,7 @@ const PlayerPanel = ({ profile, rating, userId }) => {
                 const isWin = m.user_score > m.opponent_score;
                 const isDraw = m.user_score === m.opponent_score;
                 const winProbPercent = Math.round(winProbability(userRatingBefore, oppRatingBefore) * 100);
+                
                 return (
                   <div key={m.match_id} className="group bg-[#151922] hover:bg-[#1a1f2e] border border-gray-800 hover:border-gray-700 rounded-lg p-3 sm:p-4 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex-1 min-w-0">

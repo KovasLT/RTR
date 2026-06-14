@@ -500,9 +500,11 @@ export default function TournamentManagerPanel({ rating, userId }) {
     } else alert('No assignments to save');
   };
 
+  // ========== STANDINGS FIX: include missing participants from reported matches ==========
   const standings = useMemo(() => {
     if (currentTournament?.format !== 'round_robin') return [];
     const stats = {};
+    // Add all registered participants
     participants.forEach(p => {
       const id = p.team_id || p.player_id;
       stats[id] = {
@@ -511,15 +513,40 @@ export default function TournamentManagerPanel({ rating, userId }) {
         played: 0, w: 0, l: 0, pts: 0
       };
     });
+    // Process reported matches and add missing participants on the fly
     reportedMatches.forEach(m => {
       if (m.flagged) return;
-      const p1 = m.team_a_id, p2 = m.team_b_id, s1 = m.score_team_a, s2 = m.score_team_b;
-      if (!stats[p1] || !stats[p2]) return;
-      stats[p1].played++; stats[p2].played++;
-      if (s1 > s2) { stats[p1].w++; stats[p1].pts += 3; stats[p2].l++; }
-      else if (s2 > s1) { stats[p2].w++; stats[p2].pts += 3; stats[p1].l++; }
+      const p1 = m.team_a_id;
+      const p2 = m.team_b_id;
+      const s1 = m.score_team_a;
+      const s2 = m.score_team_b;
+      if (!stats[p1]) {
+        stats[p1] = {
+          id: p1,
+          name: getParticipantName(p1, [], currentTournament.tournament_type),
+          played: 0, w: 0, l: 0, pts: 0
+        };
+      }
+      if (!stats[p2]) {
+        stats[p2] = {
+          id: p2,
+          name: getParticipantName(p2, [], currentTournament.tournament_type),
+          played: 0, w: 0, l: 0, pts: 0
+        };
+      }
+      stats[p1].played++;
+      stats[p2].played++;
+      if (s1 > s2) {
+        stats[p1].w++;
+        stats[p1].pts += 3;
+        stats[p2].l++;
+      } else if (s2 > s1) {
+        stats[p2].w++;
+        stats[p2].pts += 3;
+        stats[p1].l++;
+      }
     });
-    return Object.values(stats).sort((a,b) => b.pts - a.pts || b.w - a.w);
+    return Object.values(stats).sort((a, b) => b.pts - a.pts || b.w - a.w);
   }, [reportedMatches, participants, currentTournament]);
 
   const renderBracketSection = (bracketArray, bracketKey, title) => {

@@ -2,22 +2,17 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { useAllTeams } from '../hooks/useTeams.js';
 import { useTournaments } from '../hooks/useTournaments.js';
-import { useMatchMutations } from '../hooks/useMatches.js';
 import { useDirectory } from '../hooks/useProfiles.js';
 import { supabase } from '../lib/supabase';
 
 export default function ReportMatch() {
   const { user } = useAuth();
   const { data: allTeams = [] } = useAllTeams();
-  const { data: allTournaments = [] } = useTournaments(); // all tournaments
+  const { data: allTournaments = [] } = useTournaments();
   const { data: directory = [] } = useDirectory();
-  const { submitMatchReport, submitPlayerMatchReport } = useMatchMutations();
 
-  const [matchType, setMatchType] = useState('5v5'); // '5v5' or '1v1'
-
-  // Filter tournaments based on match type
-  // Database: tournament_type 'player' = 1v1, 'team' = 5v5
-  const filteredTournaments = allTournaments.filter(t => 
+  const [matchType, setMatchType] = useState('5v5');
+  const filteredTournaments = allTournaments.filter(t =>
     matchType === '5v5' ? t.tournament_type !== 'player' : t.tournament_type === 'player'
   );
 
@@ -48,7 +43,6 @@ export default function ReportMatch() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({ type: null, message: '' });
 
-  // Players list for 1v1
   const players = directory.filter(p => p.roles?.includes('player'));
 
   const getTeamIdFromName = (name) => {
@@ -92,6 +86,18 @@ export default function ReportMatch() {
     }));
   };
 
+  const ensurePlayerProfile = async (name) => {
+    const existing = players.find(p => (p.display_name || p.handle) === name);
+    if (existing) return existing.id;
+    const { data, error } = await supabase
+      .from('profiles')
+      .insert({ display_name: name, handle: name.toLowerCase().replace(/\s/g, '') })
+      .select('id')
+      .single();
+    if (error) throw new Error('Could not create player profile');
+    return data.id;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -123,92 +129,82 @@ export default function ReportMatch() {
       }
     }
 
-    const tournamentName = useCustomTournament
-      ? form.customTournamentName.trim()
-      : (allTournaments.find(t => t.id === form.tournamentId)?.title || null);
-
-    const basePayload = {
-      reporter_name: user?.display_name || user?.email || 'Anonymous',
-      reporter_id: user?.id,
-      tournament_name: tournamentName,
-      tournament_id: useCustomTournament ? null : form.tournamentId || null,
-      match_info: form.stage,
-      match_type: form.format,
-      score_team_a: form.scoreA,
-      score_team_b: form.scoreB,
-      match_date: form.date,
-    };
+    let tournamentId = null;
+    let tournamentName = null;
+    if (useCustomTournament) {
+      tournamentName = form.customTournamentName.trim();
+    } else {
+      tournamentId = form.tournamentId || null;
+      if (tournamentId) {
+        const tourney = allTournaments.find(t => t.id === tournamentId);
+        tournamentName = tourney?.title || null;
+      }
+    }
 
     try {
+      const matchData = {
+        tournament_id: tournamentId,
+        match_date: form.date,
+        match_type: form.format,
+        stage: form.stage,
+        score_team_a: form.scoreA,
+        score_team_b: form.scoreB,
+        status: 'pending',
+        approved: false,
+        flagged: false,
+        reporter_id: user?.id,
+        reporter_name: user?.display_name || user?.email || 'Anonymous',
+        created_at: new Date().toISOString(),
+      };
+
       if (isPlayerMatch) {
-        const playerAName = form.playerAInput.trim();
-        const playerBName = form.playerBInput.trim();
-        const playerAId = form.playerA_id || (await ensurePlayerProfile(playerAName));
-        const playerBId = form.playerB_id || (await ensurePlayerProfile(playerBName));
-
-        const payload = {
-          ...basePayload,
-          player_a_id: playerAId,
-          player_b_id: playerBId,
-        };
-        await submitPlayerMatchReport.mutateAsync(payload);
-        setStatus({ type: 'success', message: '1v1 match reported! Ratings updated.' });
-        setForm(prev => ({ ...prev, playerAInput: '', playerBInput: '', playerA_id: '', playerB_id: '', scoreA: 0, scoreB: 0 }));
+        const playerAId = form.playerA_id || (await ensurePlayerProfile(form.playerAInput));
+        const playerBId = form.playerB_id || (await ensurePlayerProfile(form.playerBInput));
+        matchData.team_a_id = playerAId;
+        matchData.team_b_id = playerBId;
+        matchData.match_type = '1v1';
       } else {
-        const teamAName = form.teamAInput.trim();
-        const teamBName = form.teamBInput.trim();
-        const teamAId = form.teamA_id;
-        const teamBId = form.teamB_id;
-        const payload = {
-          ...basePayload,
-          team_a_name: teamAName,
-          team_b_name: teamBName,
-          team_a_id: teamAId,
-          team_b_id: teamBId,
-          team_a_rating_before: 1200,
-          team_b_rating_before: 1200,
-          team_a_rating_after: null,
-          team_b_rating_after: null,
-          status: 'confirmed',
-        };
-        await submitMatchReport.mutateAsync(payload);
-        setStatus({ type: 'success', message: 'Match reported! Ratings updated.' });
-        setForm(prev => ({ ...prev, teamAInput: '', teamBInput: '', teamA_id: '', teamB_id: '', scoreA: 0, scoreB: 0 }));
+        matchData.team_a_id = form.teamA_id;
+        matchData.team_b_id = form.teamB_id;
       }
 
-      // Send Discord notification (non‑blocking)
-      try {
-        await supabase.functions.invoke('discord-match-notification', {
-          body: {
-            match_id: null,
-            team_a_name: isPlayerMatch ? form.playerAInput : form.teamAInput,
-            team_b_name: isPlayerMatch ? form.playerBInput : form.teamBInput,
-            score_a: form.scoreA,
-            score_b: form.scoreB,
-            reporter_name: user?.display_name || user?.email || 'Anonymous',
-            is_player_match: isPlayerMatch
-          }
-        });
-      } catch (notifyErr) {
-        console.warn('Discord notification failed:', notifyErr);
-      }
+      const { error } = await supabase.from('matches').insert(matchData);
+      if (error) throw error;
+
+      setStatus({ type: 'success', message: 'Match reported! Waiting for admin approval.' });
+      // Reset form
+      setForm(prev => ({
+        ...prev,
+        teamAInput: '', teamBInput: '', teamA_id: '', teamB_id: '',
+        playerAInput: '', playerBInput: '', playerA_id: '', playerB_id: '',
+        scoreA: 0, scoreB: 0,
+        tournamentId: '', customTournamentName: '',
+      }));
+      setUseCustomTournament(false);
+
+      // Discord notification – disabled if function fails
+      // try {
+      //   await supabase.functions.invoke('discord-match-notification', {
+      //     body: {
+      //       match_id: null,
+      //       team_a_name: isPlayerMatch ? form.playerAInput : form.teamAInput,
+      //       team_b_name: isPlayerMatch ? form.playerBInput : form.teamBInput,
+      //       score_a: form.scoreA,
+      //       score_b: form.scoreB,
+      //       reporter_name: user?.display_name || user?.email || 'Anonymous',
+      //       is_player_match: isPlayerMatch,
+      //       pending_approval: true
+      //     }
+      //   });
+      // } catch (notifyErr) {
+      //   console.warn('Discord notification failed:', notifyErr);
+      // }
     } catch (err) {
+      console.error(err);
       setStatus({ type: 'error', message: err.message || 'Submission failed.' });
     } finally {
       setLoading(false);
     }
-  };
-
-  const ensurePlayerProfile = async (name) => {
-    const existing = players.find(p => (p.display_name || p.handle) === name);
-    if (existing) return existing.id;
-    const { data, error } = await supabase
-      .from('profiles')
-      .insert({ display_name: name, handle: name.toLowerCase().replace(/\s/g, '') })
-      .select('id')
-      .single();
-    if (error) throw new Error('Could not create player profile');
-    return data.id;
   };
 
   return (
@@ -228,14 +224,14 @@ export default function ReportMatch() {
             <i className="fas fa-futbol text-blue-400"></i> Report Match
           </h2>
           <p className="text-gray-400 text-sm">
-            Submit game results. Ratings update immediately. Managers are notified on Discord.
+            Submit game results. They will be reviewed by an admin before affecting rankings.
           </p>
         </div>
 
         {status.message && (
           <div className={`mb-6 p-3 rounded-lg text-sm border ${
-            status.type === 'error' 
-              ? 'bg-red-950/40 border-red-800/50 text-red-300' 
+            status.type === 'error'
+              ? 'bg-red-950/40 border-red-800/50 text-red-300'
               : 'bg-green-950/40 border-green-800/50 text-green-300'
           }`}>
             {status.type === 'error' ? '⚠️ ' : '✓ '}{status.message}
