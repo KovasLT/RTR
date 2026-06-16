@@ -11,7 +11,7 @@ import {
 // Treat a cached self-profile as fresh for its full lifetime so a cache hit
 // skips the fetch entirely (the cache is busted explicitly on edit/logout).
 const PROFILE_CACHE_TTL = 2 * 24 * 60 * 60 * 1000;
- q
+
 const unwrap = (promise) =>
 promise.then((r) => {
   if (r.error) throw r.error;

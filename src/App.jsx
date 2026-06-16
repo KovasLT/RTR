@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './hooks/useAuth.jsx';
 import { ChatProvider } from './components/ChatContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -34,6 +35,7 @@ function HomeRoute() {
 
 function App() {
   return (
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <ChatProvider>   {/* ✅ Must be inside AuthProvider but outside Router */}
@@ -70,6 +72,7 @@ function App() {
         </ChatProvider>
       </AuthProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

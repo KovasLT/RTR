@@ -519,6 +519,15 @@ export const APP_CONSTANTS = {
     ERROR_LOADING_DATA: 'Error loading data:', // Error message prefix
   },
 
+  // Fallback shown by the top-level ErrorBoundary when the app crashes,
+  // instead of a blank screen.
+  ERROR_PAGE: {
+    TITLE: 'Something went wrong',
+    MESSAGE: 'An unexpected error occurred and this page could not be displayed. Head back home to continue.',
+    HOME: 'Go home',
+    DETAILS: 'Technical details',
+  },
+
   // ========================================
   // FOOTER CONTENT
   // ========================================
