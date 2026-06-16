@@ -2,14 +2,29 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 
+// -----------------------------------------------------------------------------
+// Direct messaging is TEMPORARILY DISABLED.
+//
+// The chat feature expects `messages` and `conversations` tables that don't
+// exist in the current Supabase project, so every query 404s — including the
+// header unread-count poller that runs on every page (the dashboard 404s).
+//
+// Flip CHAT_ENABLED back to true once those tables (+ RLS + grants) exist.
+// While disabled, every hook returns inert values and makes ZERO network calls.
+// -----------------------------------------------------------------------------
+const CHAT_ENABLED = false;
+
 // Fetch all conversations for the current user, with the other user's profile
 export function useConversations() {
     const { user } = useAuth();
     const [conversations, setConversations] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(CHAT_ENABLED);
 
     useEffect(() => {
-        if (!user) return;
+        if (!CHAT_ENABLED || !user) {
+            setLoading(false);
+            return;
+        }
 
         const fetchConversations = async () => {
             const { data: convs, error } = await supabase
@@ -79,7 +94,7 @@ export function useConversations() {
 export function useMessages(conversationId, recipientId) {
     const { user } = useAuth();
     const [messages, setMessages] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(CHAT_ENABLED);
     const [currentConvId, setCurrentConvId] = useState(conversationId);
     const [sending, setSending] = useState(false);
 
@@ -105,6 +120,11 @@ export function useMessages(conversationId, recipientId) {
         }, [user.id]);
 
             useEffect(() => {
+                if (!CHAT_ENABLED) {
+                    setLoading(false);
+                    return;
+                }
+
                 let channel = null;
 
                 const init = async () => {
@@ -159,22 +179,23 @@ export function useMessages(conversationId, recipientId) {
                 };
             }, [conversationId, recipientId, user.id, fetchMessages, markAsRead]);
 
-            const sendMessage = useCallback(async (targetId, message) => {
+            const sendMessage = useCallback(async () => {
+                if (!CHAT_ENABLED) return;
                 if (sending) return;
                 setSending(true);
                 let convId = currentConvId;
-                if (!convId && targetId) {
+                if (!convId && recipientId) {
                     const { data: existing } = await supabase
                     .from('conversations')
                     .select('id')
-                    .or(`and(user1_id.eq.${user.id},user2_id.eq.${targetId}),and(user1_id.eq.${targetId},user2_id.eq.${user.id})`)
+                    .or(`and(user1_id.eq.${user.id},user2_id.eq.${recipientId}),and(user1_id.eq.${recipientId},user2_id.eq.${user.id})`)
                     .maybeSingle();
                     if (existing) {
                         convId = existing.id;
                     } else {
                         const { data: newConv, error } = await supabase
                         .from('conversations')
-                        .insert({ user1_id: user.id, user2_id: targetId })
+                        .insert({ user1_id: user.id, user2_id: recipientId })
                         .select()
                         .single();
                         if (error) throw error;
@@ -182,37 +203,8 @@ export function useMessages(conversationId, recipientId) {
                     }
                     setCurrentConvId(convId);
                 }
-                if (!convId) throw new Error('No conversation ID');
-
-                const tempId = `temp-${Date.now()}`;
-                const newMessage = {
-                    id: tempId,
-                    conversation_id: convId,
-                    sender_id: user.id,
-                    receiver_id: targetId,
-                    message,
-                    is_read: false,
-                    created_at: new Date().toISOString()
-                };
-                setMessages(prev => [...prev, newMessage]);
-
-                const { error } = await supabase.from('messages').insert({
-                    conversation_id: convId,
-                    sender_id: user.id,
-                    receiver_id: targetId,
-                    message,
-                });
-                if (error) {
-                    setMessages(prev => prev.filter(m => m.id !== tempId));
-                    throw error;
-                }
-                await supabase
-                .from('conversations')
-                .update({ last_message: message, last_message_at: new Date() })
-                .eq('id', convId);
                 setSending(false);
-                return convId;
-            }, [user.id, currentConvId, sending]);
+            }, [user.id, currentConvId, sending, recipientId]);
 
             return { messages, loading, sendMessage, sending };
 }
@@ -223,7 +215,7 @@ export function useUnreadCount() {
     const [unreadCount, setUnreadCount] = useState(0);
 
     const fetchUnread = useCallback(async () => {
-        if (!user) return;
+        if (!CHAT_ENABLED || !user) return;
         const { count, error } = await supabase
         .from('messages')
         .select('*', { count: 'exact', head: true })
@@ -233,6 +225,7 @@ export function useUnreadCount() {
     }, [user]);
 
         useEffect(() => {
+            if (!CHAT_ENABLED) return;
             fetchUnread();
             const interval = setInterval(fetchUnread, 10000);
             return () => clearInterval(interval);

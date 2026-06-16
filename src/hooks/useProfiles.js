@@ -1,6 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
+import { useAuth } from './useAuth.jsx';
+import {
+  readProfileCache,
+  readProfileCacheTime,
+  writeProfileCache,
+  patchProfileCache,
+} from '../lib/profileCache.js';
 
+// Treat a cached self-profile as fresh for its full lifetime so a cache hit
+// skips the fetch entirely (the cache is busted explicitly on edit/logout).
+const PROFILE_CACHE_TTL = 2 * 24 * 60 * 60 * 1000;
+ q
 const unwrap = (promise) =>
 promise.then((r) => {
   if (r.error) throw r.error;
@@ -130,10 +141,18 @@ useQuery({
 /**
  * A single profile by id.
  */
-export const useProfile = (id) =>
-useQuery({
+export const useProfile = (id) => {
+  const { user } = useAuth();
+  // Only the signed-in user's own profile is cached in Xauth_user_profile.
+  const isSelf = Boolean(id) && user?.id === id;
+
+  return useQuery({
   queryKey: ['profile', id],
   enabled: Boolean(id) && Boolean(supabase),
+  // Cache hit → seed instantly and treat as fresh so no fetch fires on load.
+  initialData: isSelf ? () => readProfileCache(id) ?? undefined : undefined,
+  initialDataUpdatedAt: isSelf ? () => readProfileCacheTime(id) : undefined,
+  staleTime: isSelf ? PROFILE_CACHE_TTL : 0,
          queryFn: async () => {
            // 1. Get profile
            const { data: profile, error } = await supabase
@@ -228,7 +247,7 @@ useQuery({
              teamManager = tmData;
            }
 
-           return {
+           const result = {
              id: profile.id,
              handle: profile.handle,
              display_name: profile.display_name,
@@ -245,8 +264,15 @@ useQuery({
              team_manager: teamManager,
              ratings: ratings || [],
            };
+
+           // Persist the signed-in user's snapshot so future loads skip this
+           // waterfall (cookie first, sessionStorage fallback).
+           if (isSelf) writeProfileCache(id, result);
+
+           return result;
          },
-});
+  });
+};
 
 /**
  * Full rating history for a subject (oldest → newest), from the ledger.
@@ -281,10 +307,41 @@ export const usePlayerMutations = () => {
       .update({ looking_for_team: value, updated_at: new Date().toISOString() })
       .eq('user_id', userId),
     ),
+    // Optimistically flip the flag in the cached profile so the button responds
+    // instantly and we DON'T re-run the (multi-request) profile waterfall.
+    onMutate: async ({ userId, value }) => {
+      await qc.cancelQueries({ queryKey: ['profile', userId] });
+      const previous = qc.getQueryData(['profile', userId]);
+      qc.setQueryData(['profile', userId], (old) =>
+        old?.player
+          ? { ...old, player: { ...old.player, looking_for_team: value } }
+          : old,
+      );
+      // Keep the cached snapshot in sync without a refetch.
+      patchProfileCache(userId, (data) =>
+        data?.player
+          ? { ...data, player: { ...data.player, looking_for_team: value } }
+          : data,
+      );
+      return { previous, userId };
+    },
+    onError: (_err, vars, ctx) => {
+      // Roll back to the pre-click value if the update failed.
+      if (ctx?.previous !== undefined) {
+        qc.setQueryData(['profile', vars.userId], ctx.previous);
+        patchProfileCache(vars.userId, (data) =>
+          data?.player
+            ? { ...data, player: { ...data.player, looking_for_team: ctx.previous.player?.looking_for_team } }
+            : data,
+        );
+      }
+    },
     onSuccess: (_d, vars) => {
-      qc.invalidateQueries({ queryKey: ['profile', vars.userId] });
-      qc.invalidateQueries({ queryKey: ['directory'] });
-      qc.invalidateQueries({ queryKey: ['rankings'] });
+      // The flag is already correct in the profile cache; only mark the list
+      // views stale so they refresh next time they're viewed (no eager refetch,
+      // so toggling on the dashboard fires no extra requests).
+      qc.invalidateQueries({ queryKey: ['directory'], refetchType: 'none' });
+      qc.invalidateQueries({ queryKey: ['rankings'], refetchType: 'none' });
     },
   });
 

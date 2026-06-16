@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase } from '../lib/supabase.js';
+import { clearProfileCache } from '../lib/profileCache.js';
 import { useRegions, useLanes, useRanks, useHeroes } from '../hooks/useReferenceData.js';
 import { APP_CONSTANTS } from '../app-constants';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -21,6 +23,7 @@ const ProfileEdit = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, profile, roles, isAuthenticated, isLoading, refreshProfile } = useAuth();
+  const qc = useQueryClient();
   const { data: regions = [] } = useRegions();
   const { data: lanes = [] } = useLanes();
   const { data: ranks = [] } = useRanks();
@@ -174,6 +177,10 @@ const ProfileEdit = () => {
         await supabase.from('team_manager_profiles').upsert({ user_id: uid, updated_at: now });
       }
 
+      // Edits invalidate the cached snapshot; clear it and force the profile
+      // query to refetch (which rewrites a fresh Xauth_user_profile).
+      clearProfileCache();
+      await qc.invalidateQueries({ queryKey: ['profile', uid] });
       await refreshProfile();
       navigate('/profile');
     } catch (err) {
