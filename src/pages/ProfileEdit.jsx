@@ -1,25 +1,29 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase } from '../lib/supabase.js';
+import { clearProfileCache } from '../lib/profileCache.js';
 import { useRegions, useLanes, useRanks, useHeroes } from '../hooks/useReferenceData.js';
 import { APP_CONSTANTS } from '../app-constants';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-const ROLE_KEYS = ['player', 'coach', 'scout', 'tournament_manager', 'team_manager'];
+const ROLE_KEYS = ['player', 'coach', 'scout', 'team_manager'];
 
 const inputClass =
   'w-full bg-gray-800 border border-gray-600 hover:border-gray-500 rounded-lg px-3 py-2 text-white placeholder-gray-500 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500';
 
-/**
- * Profile editor — serves both first-time onboarding (`/onboarding`) and later
- * edits (`/profile/edit`). Writes the profile row, claimed roles, and the
- * role-specific detail rows to Supabase.
- */
+// Local default avatar images (place these in your public/ folder)
+const DEFAULT_AVATARS = [
+  { url: '/male.png', label: 'Male' },
+  { url: '/female.png', label: 'Female' },
+];
+
 const ProfileEdit = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, profile, roles, isAuthenticated, isLoading, refreshProfile } = useAuth();
+  const qc = useQueryClient();
   const { data: regions = [] } = useRegions();
   const { data: lanes = [] } = useLanes();
   const { data: ranks = [] } = useRanks();
@@ -34,6 +38,7 @@ const ProfileEdit = () => {
     countryIso: '',
     roles: [],
     laneId: '',
+    secondaryLaneId: '',
     rankId: '',
     server: '',
     availability: '',
@@ -42,12 +47,12 @@ const ProfileEdit = () => {
     specialties: '',
     experienceYears: '',
     org: '',
+    avatarUrl: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState('');
 
-  // Prefill the form from the existing profile, roles, and role-specific rows.
-  // Done inside an async callback so it runs once the data has loaded.
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
     let active = true;
@@ -76,6 +81,7 @@ const ProfileEdit = () => {
         countryIso: profile?.country_iso || '',
         roles: roles || [],
         laneId: p?.lane_id ? String(p.lane_id) : f.laneId,
+        secondaryLaneId: p?.secondary_lane_id ? String(p.secondary_lane_id) : f.secondaryLaneId,
         rankId: p?.rank_id ? String(p.rank_id) : f.rankId,
         server: p?.server || f.server,
         availability: p?.availability || f.availability,
@@ -84,6 +90,7 @@ const ProfileEdit = () => {
         specialties: c?.specialties || f.specialties,
         experienceYears: c?.experience_years ? String(c.experience_years) : f.experienceYears,
         org: s?.org || f.org,
+        avatarUrl: profile?.avatar_url || '',
       }));
     })();
 
@@ -91,6 +98,11 @@ const ProfileEdit = () => {
       active = false;
     };
   }, [isAuthenticated, user?.id, user?.username, profile, roles]);
+
+  // Update avatar preview when URL changes
+  useEffect(() => {
+    setAvatarPreview(form.avatarUrl || DEFAULT_AVATARS[0].url);
+  }, [form.avatarUrl]);
 
   if (isLoading) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
@@ -122,6 +134,7 @@ const ProfileEdit = () => {
           bio: form.bio || null,
           region_id: form.regionId ? Number(form.regionId) : null,
           country_iso: form.countryIso || null,
+          avatar_url: form.avatarUrl || null,
           updated_at: now,
         })
         .eq('id', uid);
@@ -139,6 +152,7 @@ const ProfileEdit = () => {
         const { error: err } = await supabase.from('player_profiles').upsert({
           user_id: uid,
           lane_id: form.laneId ? Number(form.laneId) : null,
+          secondary_lane_id: form.secondaryLaneId ? Number(form.secondaryLaneId) : null,
           rank_id: form.rankId ? Number(form.rankId) : null,
           server: form.server || null,
           availability: form.availability || null,
@@ -159,15 +173,14 @@ const ProfileEdit = () => {
       if (form.roles.includes('scout')) {
         await supabase.from('scout_profiles').upsert({ user_id: uid, org: form.org || null, updated_at: now });
       }
-      if (form.roles.includes('tournament_manager')) {
-        await supabase
-          .from('tournament_manager_profiles')
-          .upsert({ user_id: uid, org: form.org || null, updated_at: now });
-      }
       if (form.roles.includes('team_manager')) {
         await supabase.from('team_manager_profiles').upsert({ user_id: uid, updated_at: now });
       }
 
+      // Edits invalidate the cached snapshot; clear it and force the profile
+      // query to refetch (which rewrites a fresh Xauth_user_profile).
+      clearProfileCache();
+      await qc.invalidateQueries({ queryKey: ['profile', uid] });
       await refreshProfile();
       navigate('/profile');
     } catch (err) {
@@ -182,9 +195,7 @@ const ProfileEdit = () => {
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-white mb-2">
-          {isEditing ? C.EDIT_TITLE : C.TITLE}
-        </h1>
+        <h1 className="text-3xl font-bold text-white mb-2">{isEditing ? C.EDIT_TITLE : C.TITLE}</h1>
         <p className="text-gray-400">{isEditing ? C.EDIT_SUBTITLE : C.SUBTITLE}</p>
       </div>
 
@@ -198,8 +209,56 @@ const ProfileEdit = () => {
           </div>
         )}
 
-        {/* Basic info */}
+        {/* Basic info with avatar */}
         <div className="rtr-card space-y-4">
+          {/* Avatar preview and selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Profile Picture</label>
+            <div className="flex items-center gap-4 mb-3">
+              <img
+                src={avatarPreview}
+                alt="Avatar preview"
+                className="w-16 h-16 rounded-full object-cover border border-gray-700"
+                onError={(e) => { e.target.src = DEFAULT_AVATARS[0].url; }}
+              />
+              <div className="flex-1">
+                <input
+                  type="text"
+                  className={inputClass}
+                  placeholder="Custom image URL"
+                  value={form.avatarUrl}
+                  onChange={(e) => set('avatarUrl', e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className="text-xs text-gray-500">Choose:</span>
+              {/* Discord avatar as clickable thumbnail */}
+              {profile?.avatar_url && (
+                <button
+                  type="button"
+                  onClick={() => set('avatarUrl', profile.avatar_url)}
+                  className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-600 hover:border-indigo-500 transition-colors"
+                  title="My Discord avatar"
+                >
+                  <img src={profile.avatar_url} alt="Discord avatar" className="w-full h-full object-cover" />
+                </button>
+              )}
+              {/* Local default avatars */}
+              {DEFAULT_AVATARS.map((item) => (
+                <button
+                  key={item.url}
+                  type="button"
+                  onClick={() => set('avatarUrl', item.url)}
+                  className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-600 hover:border-indigo-500 transition-colors"
+                  title={item.label}
+                >
+                  <img src={item.url} alt={item.label} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">{C.DISPLAY_NAME_LABEL}</label>
             <input className={inputClass} value={form.displayName} onChange={(e) => set('displayName', e.target.value)} />
@@ -268,6 +327,17 @@ const ProfileEdit = () => {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Secondary Lane</label>
+                <select className={inputClass} value={form.secondaryLaneId} onChange={(e) => set('secondaryLaneId', e.target.value)}>
+                  <option value="">None</option>
+                  {lanes.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">{C.RANK_LABEL}</label>
                 <select className={inputClass} value={form.rankId} onChange={(e) => set('rankId', e.target.value)}>
                   <option value="">{C.SELECT_PLACEHOLDER}</option>
@@ -276,16 +346,14 @@ const ProfileEdit = () => {
                   ))}
                 </select>
               </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">{C.SERVER_LABEL}</label>
                 <input className={inputClass} value={form.server} onChange={(e) => set('server', e.target.value)} />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">{C.AVAILABILITY_LABEL}</label>
-                <input className={inputClass} placeholder={C.AVAILABILITY_PLACEHOLDER} value={form.availability} onChange={(e) => set('availability', e.target.value)} />
-              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.AVAILABILITY_LABEL}</label>
+              <input className={inputClass} placeholder={C.AVAILABILITY_PLACEHOLDER} value={form.availability} onChange={(e) => set('availability', e.target.value)} />
             </div>
             {heroes.length > 0 && (
               <div>
@@ -333,7 +401,7 @@ const ProfileEdit = () => {
         )}
 
         {/* Scout / org details */}
-        {(form.roles.includes('scout') || form.roles.includes('tournament_manager')) && (
+        {form.roles.includes('scout') && (
           <div className="rtr-card space-y-4">
             <h3 className="text-lg font-semibold text-white">{C.SCOUT_SECTION}</h3>
             <div>

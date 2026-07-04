@@ -7,6 +7,7 @@ import AdminOverview from '../components/admin/AdminOverview';
 import AdminUsers from '../components/admin/AdminUsers';
 import AdminRatings from '../components/admin/AdminRatings';
 import AdminReference from '../components/admin/AdminReference';
+import AdminTasks from '../components/admin/AdminTasks';
 
 const A = APP_CONSTANTS.ADMIN;
 
@@ -15,12 +16,9 @@ const TABS = [
   { key: 'users', label: A.TAB_USERS, Component: AdminUsers },
   { key: 'ratings', label: A.TAB_RATINGS, Component: AdminRatings },
   { key: 'reference', label: A.TAB_REFERENCE, Component: AdminReference },
+  { key: 'tasks', label: 'Tasks', Component: AdminTasks },
 ];
 
-/**
- * Admin dashboard. Client gate is `is_admin`; the database (RLS + SECURITY
- * DEFINER functions) independently enforces admin-only writes.
- */
 const AdminDashboard = () => {
   const { user, isLoading, isAuthenticated } = useAuth();
   const [tab, setTab] = useState('overview');

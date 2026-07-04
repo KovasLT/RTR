@@ -17,8 +17,8 @@ export const APP_CONSTANTS = {
   // ========================================
   /** Brand identity and core messaging */
   BRAND: {
-    NAME: 'RTR', // Short brand name displayed in header logo
-    FULL_NAME: 'Rising Teams Rating', // Full application name
+    NAME: 'COREner.eu', // Short brand name displayed in header logo
+    FULL_NAME: 'Corener', // Full application name
     TAGLINE: 'Community Esports Rankings', // Subtitle under brand name
     SUBTITLE: 'Tracking community teams and players across competitive esports.', // Main hero description
   },
@@ -43,6 +43,11 @@ export const APP_CONSTANTS = {
     DASHBOARD: 'Dashboard', // Role dashboard link
     ADMIN: 'Admin', // Admin dashboard link (admins only)
     MENU: 'Menu', // Mobile menu toggle label
+
+// --- NEW ADDITIONS FOR DASHBOARD SIDEBAR ---
+    QUICK_ACTIONS_TITLE: 'Match Actions',
+    REPORT_MATCH: 'Report Match',
+    LOOK_FOR_SCRIMS: 'Look for Scrims',
   },
 
   // ========================================
@@ -416,8 +421,8 @@ export const APP_CONSTANTS = {
   // ========================================
   /** Home/dashboard page text and labels */
   HOME: {
-    MAIN_HEADING: 'Rising Teams', // Main hero heading (first part)
-    MAIN_HEADING_ACCENT: 'Rating', // Main hero heading accent (colored part)
+    MAIN_HEADING: 'Corener', // Main hero heading (first part)
+    MAIN_HEADING_ACCENT: '.eu', // Main hero heading accent (colored part)
 
     /** Feature highlights displayed below hero */
     FEATURES: {
@@ -439,6 +444,29 @@ export const APP_CONSTANTS = {
       UPDATES: 'Updates', // News/updates section title
       UPCOMING_TOURNAMENTS: 'Upcoming Tournaments', // Events section title
     },
+  },
+
+  // ========================================
+  // WELCOME PAGE (LOGGED OUT STATE)
+  // ========================================
+  WELCOME: {
+    HEADING: 'Welcome to',
+    SUBTITLE: 'The central hub for Honor of Kings competitive rankings, team building, and community tournaments.',
+    CALL_TO_ACTION: 'Sign in with Discord to view live statistics, track your Elo rating, and manage your rosters.',
+    COMMUNITIES_TITLE: 'Join our Communities',
+    COMMUNITIES_TEXT: 'Corener is a community project, currently not affiliated or endorsed by any game. We seek to help competitive players achieve their dreams. For more information join our discord servers or check INFORMATION panel:',
+    LINKS: {
+      ETIC: {
+        NAME: 'ETIC League',
+        URL: 'https://discord.gg/99txnCn8aZ',
+        DESC: 'Discord for EU and MENA community teams to find scrims, scrims style tournaments, get information about official events and more'
+      },
+      THG: {
+        NAME: 'THG',
+        URL: 'https://discord.gg/9ydNJPKf5r',
+        DESC: 'Discord for various format community tournaments and fun events'
+      }
+    }
   },
 
   // ========================================
@@ -514,12 +542,21 @@ export const APP_CONSTANTS = {
     ERROR_LOADING_DATA: 'Error loading data:', // Error message prefix
   },
 
+  // Fallback shown by the top-level ErrorBoundary when the app crashes,
+  // instead of a blank screen.
+  ERROR_PAGE: {
+    TITLE: 'Something went wrong',
+    MESSAGE: 'An unexpected error occurred and this page could not be displayed. Head back home to continue.',
+    HOME: 'Go home',
+    DETAILS: 'Technical details',
+  },
+
   // ========================================
   // FOOTER CONTENT
   // ========================================
   /** Footer text and legal information */
   FOOTER: {
-    COPYRIGHT: '© 2026 Rising Teams Rating (RTR). Open-Source Ranking System.', // Copyright notice
+    COPYRIGHT: '© 2026 Corener.eu. Community Teams Ranking System. P.S> Website is still in testing version.', // Copyright notice
   },
 
   // ========================================

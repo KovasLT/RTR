@@ -6,6 +6,7 @@ import {
   useContext,
 } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
+import { clearProfileCache } from '../lib/profileCache.js';
 
 /**
  * Authentication Context (Supabase + Discord)
@@ -131,6 +132,7 @@ export const AuthProvider = ({ children }) => {
    */
   const logout = useCallback(async () => {
     setError(null);
+    clearProfileCache();
     if (supabase) await supabase.auth.signOut();
     setAuthUser(null);
     setProfile(null);

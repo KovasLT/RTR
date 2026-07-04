@@ -1,16 +1,21 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useTeamRankings } from '../hooks/useRankings';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../hooks/useAuth';
+import { useUnreadCount } from '../hooks/useDirectMessages';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { APP_CONSTANTS } from '../app-constants';
 
 const ALL = APP_CONSTANTS.TEAMS.ALL_REGIONS;
 
 const Teams = () => {
+  const { user } = useAuth();
   const { data: teams = [], isLoading, error } = useTeamRankings();
   const [currentRegionFilter, setCurrentRegionFilter] = useState(ALL);
+  const { unreadCount } = useUnreadCount();
 
-  // Region tabs are derived from the teams that actually exist.
+  // Region tabs derived from teams
   const availableRegions = useMemo(() => {
     const codes = [...new Set(teams.map((t) => t.regionCode).filter(Boolean))].sort();
     return [ALL, ...codes];
@@ -35,6 +40,25 @@ const Teams = () => {
 
   return (
     <div className="animate-fade-in">
+      {/* Banner to remind about tournament invitations via chat */}
+      {user && unreadCount > 0 && (
+        <div className="mb-6 bg-indigo-950/30 border border-indigo-800/50 rounded-lg p-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <i className="fas fa-envelope text-indigo-400"></i>
+            <span className="text-sm text-gray-300">
+              You have <span className="font-bold text-white">{unreadCount}</span> unread message{unreadCount !== 1 ? 's' : ''}.
+              <Link to="/dashboard?tab=messages" className="ml-2 text-indigo-400 hover:text-indigo-300">Check your inbox</Link> for tournament invitations.
+            </span>
+          </div>
+          <Link
+            to="/dashboard?tab=messages"
+            className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1 rounded"
+          >
+            Go to Messages
+          </Link>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
         <h2 className="text-2xl font-black text-white uppercase tracking-tight">{APP_CONSTANTS.TEAMS.PAGE_TITLE}</h2>
         <div className="flex bg-[#13192b] border border-slate-800 p-1 rounded-lg">
@@ -43,7 +67,6 @@ const Teams = () => {
             const stateClasses = isCurrent
               ? 'bg-indigo-600 text-white shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60';
-
             return (
               <button
                 key={regionKey}
@@ -57,6 +80,7 @@ const Teams = () => {
         </div>
       </div>
 
+      {/* Teams Table */}
       <div className="bg-[#13192b] border border-slate-800 rounded-xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse whitespace-nowrap">

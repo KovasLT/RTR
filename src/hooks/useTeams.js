@@ -1,183 +1,183 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase.js';
 
-/**
- * Teams, rosters & applications (Phase 2). Mirrors the react-query style of
- * useProfiles.js / useAdmin.js. All rating writes happen server-side; the
- * application lifecycle (accept/withdraw/remove) goes through SECURITY DEFINER
- * RPCs defined in 0007_teams.sql.
- */
-
 const unwrap = (promise) =>
-  promise.then((r) => {
-    if (r.error) throw r.error;
-    return r.data;
-  });
+promise.then((r) => {
+  if (r.error) throw r.error;
+  return r.data;
+});
 
 const ratingFor = async (ids) => {
   if (!ids.length) return new Map();
   const { data } = await supabase
-    .from('ratings')
-    .select('subject_id, rating')
-    .eq('subject_type', 'team')
-    .in('subject_id', ids);
+  .from('ratings')
+  .select('subject_id, rating')
+  .eq('subject_type', 'team')
+  .in('subject_id', ids);
   return new Map((data ?? []).map((r) => [r.subject_id, r.rating]));
 };
 
-/** Teams managed by the given user, with member + pending-application counts. */
 export const useMyTeams = (managerId) =>
-  useQuery({
-    queryKey: ['teams', 'mine', managerId],
-    enabled: Boolean(supabase) && Boolean(managerId),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('teams')
-        .select(
-          'id, name, tag, logo_url, status, region:regions(code,name), members:team_members(user_id), applications(id,status)',
-        )
-        .eq('manager_id', managerId)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
+useQuery({
+  queryKey: ['teams', 'mine', managerId],
+  enabled: Boolean(supabase) && Boolean(managerId),
+         queryFn: async () => {
+           const { data, error } = await supabase
+           .from('teams')
+           .select(
+             'id, name, tag, logo_url, status, region:regions(code,name), members:team_members(user_id), applications(id,status)',
+           )
+           .eq('manager_id', managerId)
+           .order('created_at', { ascending: true });
+           if (error) throw error;
 
-      const teams = data ?? [];
-      const ratings = await ratingFor(teams.map((t) => t.id));
-      return teams.map((t) => ({
-        ...t,
-        memberCount: (t.members ?? []).length,
-        pendingCount: (t.applications ?? []).filter((a) => a.status === 'pending').length,
-        rating: ratings.get(t.id) ?? null,
-      }));
-    },
-  });
+           const teams = data ?? [];
+           const ratings = await ratingFor(teams.map((t) => t.id));
+           return teams.map((t) => ({
+             ...t,
+             memberCount: (t.members ?? []).length,
+                                    pendingCount: (t.applications ?? []).filter((a) => a.status === 'pending').length,
+                                    rating: ratings.get(t.id) ?? null,
+           }));
+         },
+});
 
-/** One team with its roster, applications, and team rating. */
 export const useTeam = (id) =>
-  useQuery({
-    queryKey: ['teams', 'one', id],
-    enabled: Boolean(supabase) && Boolean(id),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('teams')
-        .select(
-          `id, name, tag, logo_url, status, recruitment_note, manager_id,
-           region:regions(id,code,name),
-           members:team_members(
-             user_id, lane_id, is_captain, joined_at,
-             profile:profiles(id, display_name, handle, avatar_url),
-             lane:lanes(id,name)
-           ),
-           staff:team_staff(
-             user_id, role, added_at,
-             profile:profiles(id, display_name, handle, avatar_url)
-           ),
-           applications(
-             id, applicant_id, type, status, message, created_at,
-             applicant:profiles(id, display_name, handle, avatar_url)
-           )`,
-        )
-        .eq('id', id)
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) return null;
+useQuery({
+  queryKey: ['teams', 'one', id],
+  enabled: Boolean(supabase) && Boolean(id),
+         queryFn: async () => {
+           const { data, error } = await supabase
+           .from('teams')
+           .select(
+             `id, name, tag, logo_url, status, recruitment_note, manager_id,
+             region:regions(id,code,name),
+                   members:team_members(
+                     user_id, lane_id, is_captain, joined_at,
+                     profile:profiles(id, display_name, handle, avatar_url),
+                                        lane:lanes(id,name)
+                   ),
+                   staff:team_staff(
+                     user_id, role, added_at,
+                     profile:profiles(id, display_name, handle, avatar_url)
+                   ),
+                   applications(
+                     id, applicant_id, type, status, message, created_at,
+                     applicant:profiles(id, display_name, handle, avatar_url)
+                   )`,
+           )
+           .eq('id', id)
+           .maybeSingle();
+           if (error) throw error;
+           if (!data) return null;
 
-      const ratings = await ratingFor([data.id]);
-      return { ...data, rating: ratings.get(data.id) ?? null };
-    },
-  });
+           const ratings = await ratingFor([data.id]);
+           return { ...data, rating: ratings.get(data.id) ?? null };
+         },
+});
 
-/** Teams currently recruiting (for player recommendations). */
 export const useRecruitingTeams = () =>
-  useQuery({
-    queryKey: ['teams', 'recruiting'],
-    enabled: Boolean(supabase),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('teams')
-        .select('id, name, tag, recruitment_note, region:regions(id, code), members:team_members(user_id)')
-        .eq('status', 'recruiting');
-      if (error) throw error;
-      return (data ?? []).map((t) => ({
-        id: t.id,
-        name: t.name,
-        tag: t.tag,
-        note: t.recruitment_note,
-        regionId: t.region?.id ?? null,
-        regionCode: t.region?.code ?? null,
-        memberCount: (t.members ?? []).length,
-      }));
-    },
-  });
+useQuery({
+  queryKey: ['teams', 'recruiting'],
+  enabled: Boolean(supabase),
+         queryFn: async () => {
+           const { data, error } = await supabase
+           .from('teams')
+           .select('id, name, tag, recruitment_note, region:regions(id, code), members:team_members(user_id)')
+           .eq('status', 'recruiting');
+           if (error) throw error;
+           return (data ?? []).map((t) => ({
+             id: t.id,
+             name: t.name,
+             tag: t.tag,
+             note: t.recruitment_note,
+             regionId: t.region?.id ?? null,
+             regionCode: t.region?.code ?? null,
+             memberCount: (t.members ?? []).length,
+           }));
+         },
+});
 
-/** Teams the given user is staff of, optionally filtered to one staff role. */
 export const useMyStaffTeams = (userId, role) =>
-  useQuery({
-    queryKey: ['teams', 'staff', userId, role ?? 'any'],
-    enabled: Boolean(supabase) && Boolean(userId),
-    queryFn: async () => {
-      let q = supabase
-        .from('team_staff')
-        .select('role, team:teams(id, name, tag, status, region:regions(code))')
-        .eq('user_id', userId);
-      if (role) q = q.eq('role', role);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? [])
-        .filter((r) => r.team)
-        .map((r) => ({
-          teamId: r.team.id,
-          name: r.team.name,
-          tag: r.team.tag,
-          status: r.team.status,
-          regionCode: r.team.region?.code ?? null,
-          staffRole: r.role,
-        }));
-    },
-  });
+useQuery({
+  queryKey: ['teams', 'staff', userId, role ?? 'any'],
+  enabled: Boolean(supabase) && Boolean(userId),
+         queryFn: async () => {
+           let q = supabase
+           .from('team_staff')
+           .select('role, team:teams(id, name, tag, status, region:regions(code))')
+           .eq('user_id', userId);
+           if (role) q = q.eq('role', role);
+           const { data, error } = await q;
+           if (error) throw error;
+           return (data ?? [])
+           .filter((r) => r.team)
+           .map((r) => ({
+             teamId: r.team.id,
+             name: r.team.name,
+             tag: r.team.tag,
+             status: r.team.status,
+             regionCode: r.team.region?.code ?? null,
+             staffRole: r.role,
+           }));
+         },
+});
 
-/** Teams the given user is a roster member of (player side), with team rating. */
 export const useMyMemberships = (userId) =>
-  useQuery({
-    queryKey: ['teams', 'member', userId],
-    enabled: Boolean(supabase) && Boolean(userId),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('team_members')
-        .select('team_id, is_captain, lane:lanes(name), team:teams(id, name, tag, status, region:regions(code))')
-        .eq('user_id', userId);
-      if (error) throw error;
+useQuery({
+  queryKey: ['teams', 'member', userId],
+  enabled: Boolean(supabase) && Boolean(userId),
+         queryFn: async () => {
+           const { data, error } = await supabase
+           .from('team_members')
+           .select('team_id, is_captain, lane:lanes(name), team:teams(id, name, tag, status, region:regions(code))')
+           .eq('user_id', userId);
+           if (error) throw error;
 
-      const rows = (data ?? []).filter((r) => r.team);
-      const ratings = await ratingFor(rows.map((r) => r.team_id));
-      return rows.map((r) => ({
-        teamId: r.team_id,
-        name: r.team.name,
-        tag: r.team.tag,
-        status: r.team.status,
-        regionCode: r.team.region?.code || null,
-        lane: r.lane?.name || null,
-        isCaptain: r.is_captain,
-        rating: ratings.get(r.team_id) ?? null,
-      }));
-    },
-  });
+           const rows = (data ?? []).filter((r) => r.team);
+           const ratings = await ratingFor(rows.map((r) => r.team_id));
+           return rows.map((r) => ({
+             teamId: r.team_id,
+             name: r.team.name,
+             tag: r.team.tag,
+             status: r.team.status,
+             regionCode: r.team.region?.code || null,
+             lane: r.lane?.name || null,
+             isCaptain: r.is_captain,
+             rating: ratings.get(r.team_id) ?? null,
+           }));
+         },
+});
 
-/** Applications + invites involving the given user (player side). */
 export const useMyApplications = (userId) =>
-  useQuery({
-    queryKey: ['applications', 'mine', userId],
-    enabled: Boolean(supabase) && Boolean(userId),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('applications')
-        .select('id, team_id, type, status, message, created_at, team:teams(id,name,tag)')
-        .eq('applicant_id', userId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+useQuery({
+  queryKey: ['applications', 'mine', userId],
+  enabled: Boolean(supabase) && Boolean(userId),
+         queryFn: async () => {
+           const { data, error } = await supabase
+           .from('applications')
+           .select('id, team_id, type, status, message, created_at, team:teams(id,name,tag)')
+           .eq('applicant_id', userId)
+           .order('created_at', { ascending: false });
+           if (error) throw error;
+           return data ?? [];
+         },
+});
 
-/** Write actions for teams + applications. */
+export const useAllTeams = () =>
+useQuery({
+  queryKey: ['teams', 'all'],
+  enabled: Boolean(supabase),
+         queryFn: async () => {
+           const { data, error } = await supabase
+           .from('teams')
+           .select('id, name, tag, status')
+           .order('name');
+           if (error) throw error;
+           return data ?? [];
+         },
+});
+
 export const useTeamMutations = () => {
   const qc = useQueryClient();
   const invalidate = () => {
@@ -190,21 +190,20 @@ export const useTeamMutations = () => {
     mutationFn: async ({ managerId, name, tag, regionId, status }) => {
       const team = await unwrap(
         supabase
-          .from('teams')
-          .insert({
-            manager_id: managerId,
-            name,
-            tag: tag || null,
-            region_id: regionId ? Number(regionId) : null,
-            status: status || 'recruiting',
-          })
-          .select('id')
-          .single(),
+        .from('teams')
+        .insert({
+          manager_id: managerId,
+          name,
+          tag: tag || null,
+          region_id: regionId ? Number(regionId) : null,
+                status: status || 'recruiting',
+        })
+        .select('id')
+        .single(),
       );
-      // Ensure the creator holds the team_manager role (seeds its own rating).
       await supabase
-        .from('user_roles')
-        .upsert({ user_id: managerId, role: 'team_manager' }, { onConflict: 'user_id,role', ignoreDuplicates: true });
+      .from('user_roles')
+      .upsert({ user_id: managerId, role: 'team_manager' }, { onConflict: 'user_id,role', ignoreDuplicates: true });
       return team;
     },
     onSuccess: invalidate,
@@ -212,74 +211,108 @@ export const useTeamMutations = () => {
 
   const updateTeam = useMutation({
     mutationFn: ({ id, patch }) =>
-      unwrap(
-        supabase
-          .from('teams')
-          .update({ ...patch, updated_at: new Date().toISOString() })
-          .eq('id', id),
-      ),
+    unwrap(
+      supabase
+      .from('teams')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', id),
+    ),
     onSuccess: invalidate,
   });
 
   const updateMember = useMutation({
     mutationFn: ({ teamId, userId, patch }) =>
-      unwrap(supabase.from('team_members').update(patch).eq('team_id', teamId).eq('user_id', userId)),
+    unwrap(supabase.from('team_members').update(patch).eq('team_id', teamId).eq('user_id', userId)),
+                                   onSuccess: invalidate,
+  });
+
+  // NEW: Add a team member (insert)
+  const addTeamMember = useMutation({
+    mutationFn: async ({ teamId, userId, laneId, isCaptain }) => {
+      // Check if already a member to avoid unique violation
+      const { data: existing } = await supabase
+      .from('team_members')
+      .select('user_id')
+      .eq('team_id', teamId)
+      .eq('user_id', userId)
+      .maybeSingle();
+      if (existing) {
+        // Already a member, just return silently or throw a friendly error
+        throw new Error('User is already a member of this team');
+      }
+      return unwrap(
+        supabase.from('team_members').insert({
+          team_id: teamId,
+          user_id: userId,
+          lane_id: laneId || null,
+          is_captain: isCaptain || false,
+        })
+      );
+    },
     onSuccess: invalidate,
   });
 
   const invitePlayer = useMutation({
     mutationFn: ({ teamId, applicantId, message }) =>
-      unwrap(
-        supabase
-          .from('applications')
-          .insert({ team_id: teamId, applicant_id: applicantId, type: 'invite', message: message || null }),
-      ),
+    unwrap(
+      supabase
+      .from('applications')
+      .insert({ team_id: teamId, applicant_id: applicantId, type: 'invite', message: message || null }),
+    ),
     onSuccess: invalidate,
   });
 
   const applyToTeam = useMutation({
     mutationFn: ({ teamId, applicantId, message }) =>
-      unwrap(
-        supabase
-          .from('applications')
-          .insert({ team_id: teamId, applicant_id: applicantId, type: 'apply', message: message || null }),
-      ),
+    unwrap(
+      supabase
+      .from('applications')
+      .insert({ team_id: teamId, applicant_id: applicantId, type: 'apply', message: message || null }),
+    ),
     onSuccess: invalidate,
   });
 
   const respondToApplication = useMutation({
     mutationFn: ({ appId, accept }) =>
-      unwrap(supabase.rpc('respond_to_application', { p_app_id: appId, p_accept: accept })),
-    onSuccess: invalidate,
+    unwrap(supabase.rpc('respond_to_application', { p_app_id: appId, p_accept: accept })),
+                                           onSuccess: invalidate,
   });
 
   const withdrawApplication = useMutation({
     mutationFn: ({ appId }) => unwrap(supabase.rpc('withdraw_application', { p_app_id: appId })),
-    onSuccess: invalidate,
+                                          onSuccess: invalidate,
   });
 
   const removeMember = useMutation({
     mutationFn: ({ teamId, userId }) =>
-      unwrap(supabase.rpc('remove_team_member', { p_team_id: teamId, p_user_id: userId })),
+    unwrap(
+      supabase
+      .from('team_members')
+      .update({ left_at: new Date().toISOString() })
+      .eq('team_id', teamId)
+      .eq('user_id', userId)
+      .is('left_at', null) // only update if not already left
+    ),
     onSuccess: invalidate,
   });
 
   const addStaff = useMutation({
     mutationFn: ({ teamId, userId, role }) =>
-      unwrap(supabase.from('team_staff').insert({ team_id: teamId, user_id: userId, role })),
-    onSuccess: invalidate,
+    unwrap(supabase.from('team_staff').insert({ team_id: teamId, user_id: userId, role })),
+                               onSuccess: invalidate,
   });
 
   const removeStaff = useMutation({
     mutationFn: ({ teamId, userId }) =>
-      unwrap(supabase.from('team_staff').delete().eq('team_id', teamId).eq('user_id', userId)),
-    onSuccess: invalidate,
+    unwrap(supabase.from('team_staff').delete().eq('team_id', teamId).eq('user_id', userId)),
+                                  onSuccess: invalidate,
   });
 
   return {
     createTeam,
     updateTeam,
     updateMember,
+    addTeamMember,
     invitePlayer,
     applyToTeam,
     respondToApplication,
