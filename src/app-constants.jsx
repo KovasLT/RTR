@@ -17,8 +17,8 @@ export const APP_CONSTANTS = {
   // ========================================
   /** Brand identity and core messaging */
   BRAND: {
-    NAME: 'RTR', // Short brand name displayed in header logo
-    FULL_NAME: 'Rising Teams Rating', // Full application name
+    NAME: 'CNE', // Short brand name displayed in header logo
+    FULL_NAME: 'Corener', // Full application name
     TAGLINE: 'Community Esports Rankings', // Subtitle under brand name
     SUBTITLE: 'Tracking community teams and players across competitive esports.', // Main hero description
   },

@@ -96,8 +96,12 @@ const Header = () => {
 
         {/* Brand */}
         <Link to="/" onClick={closeAll} className="flex items-center gap-3 shrink-0">
-          <div className="bg-gray-700 text-white font-black px-2 py-1 rounded tracking-widest text-xl">
-            {APP_CONSTANTS.BRAND.NAME}
+          <div className="shrink-0">
+            <img
+              src="/icon.svg"
+              alt="CORENER"
+              className="h-10 w-10"
+            />
           </div>
           <div className="hidden sm:block">
             <h1 className="text-white font-bold text-sm leading-tight uppercase tracking-wide">
