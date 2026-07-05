@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
@@ -9,6 +10,11 @@ export function useMessages(initialConversationId, recipientId) {
 
     // Keep track of the actual conversation ID (may be updated after sending)
     const [conversationId, setConversationId] = useState(initialConversationId);
+
+    // Sync with parent-provided ID when it changes
+    useEffect(() => {
+        setConversationId(initialConversationId);
+    }, [initialConversationId]);
 
     // Fetch messages for the current conversationId
     const { data: messages = [], isLoading, error, refetch } = useQuery({
@@ -38,7 +44,7 @@ export function useMessages(initialConversationId, recipientId) {
 
             // If no conversation yet, find or create one
             if (!convId) {
-                // Check if a conversation already exists
+                // Check if a conversation already exists between these two users
                 const { data: existing, error: findError } = await supabase
                 .from('conversations')
                 .select('id')
