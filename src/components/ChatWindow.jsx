@@ -4,11 +4,25 @@ import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import InvitationMessage from './InvitationMessage';
 
-export default function ChatWindow({ conversationId, recipient }) {
+export default function ChatWindow({ conversationId: initialConvId, recipient, onConversationCreated }) {
   const { user } = useAuth();
-  const { messages, loading, sendMessage, sending, refetch } = useMessages(conversationId, recipient?.id);
+  const {
+    messages,
+    loading,
+    sendMessage,
+    sending,
+    refetch,
+    conversationId: currentConvId,
+  } = useMessages(initialConvId, recipient?.id);
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef(null);
+
+  // When the conversation ID changes (new one created), notify parent
+  useEffect(() => {
+    if (currentConvId && currentConvId !== initialConvId && onConversationCreated) {
+      onConversationCreated(currentConvId);
+    }
+  }, [currentConvId, initialConvId, onConversationCreated]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -18,7 +32,7 @@ export default function ChatWindow({ conversationId, recipient }) {
     e.preventDefault();
     if (!newMessage.trim() || sending) return;
     try {
-      await sendMessage(recipient?.id, newMessage.trim());
+      await sendMessage(newMessage.trim());
       setNewMessage('');
       // Optionally refetch to update the list immediately
       refetch();
@@ -28,7 +42,7 @@ export default function ChatWindow({ conversationId, recipient }) {
     }
   };
 
-  if (!recipient && !conversationId) {
+  if (!recipient && !initialConvId) {
     return (
       <div className="h-full flex items-center justify-center text-gray-500">
         Select a conversation to start messaging.
@@ -45,9 +59,8 @@ export default function ChatWindow({ conversationId, recipient }) {
           <div className="text-white font-bold">{recipientName}</div>
           <div className="text-gray-500 text-xs">Direct message • Messages expire after 2 days</div>
         </div>
-        {/* Manual refresh button */}
         <button
-          onClick={() => refetch()}
+          onClick={refetch}
           className="text-gray-400 hover:text-white transition text-sm p-1 rounded-full hover:bg-gray-700"
           title="Refresh messages"
         >
@@ -61,7 +74,6 @@ export default function ChatWindow({ conversationId, recipient }) {
           <div className="text-gray-500 text-center mt-8">No messages yet. Say hello!</div>
         ) : (
           messages.map(msg => {
-            // System message with invitation actions
             if (msg.is_system && msg.invitation_id) {
               return (
                 <div key={msg.id} className="flex justify-center my-2">
@@ -74,8 +86,6 @@ export default function ChatWindow({ conversationId, recipient }) {
                 </div>
               );
             }
-
-            // Normal message
             const isMe = msg.sender_id === user.id;
             const isTemp = msg.id?.startsWith('temp-');
             return (

@@ -3,16 +3,15 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import { useData } from './useData';
 
-/**
- * Hook for fetching and sending messages in a specific conversation.
- * Automatically creates a new conversation if none exists.
- */
-export function useMessages(conversationId, recipientId) {
+export function useMessages(initialConversationId, recipientId) {
     const { user } = useAuth();
     const queryClient = useQueryClient();
 
-    // Fetch messages if we have a conversation ID
-    const { data: messages = [], isLoading, error } = useQuery({
+    // Keep track of the actual conversation ID (may be updated after sending)
+    const [conversationId, setConversationId] = useState(initialConversationId);
+
+    // Fetch messages for the current conversationId
+    const { data: messages = [], isLoading, error, refetch } = useQuery({
         queryKey: ['messages', conversationId],
         queryFn: async () => {
             if (!conversationId) return [];
@@ -25,21 +24,21 @@ export function useMessages(conversationId, recipientId) {
             return data || [];
         },
         enabled: !!conversationId,
-        staleTime: Infinity,          // never auto‑refetch
+        staleTime: Infinity,
         refetchOnMount: false,
         refetchOnWindowFocus: false,
     });
 
-    // Mutation to send a message (and create conversation if needed)
+    // Mutation to send a message (creates conversation if needed)
     const sendMutation = useMutation({
         mutationFn: async (message) => {
             if (!recipientId || !user) throw new Error('Missing recipient or user');
 
             let convId = conversationId;
 
-            // If no conversation yet, create one
+            // If no conversation yet, find or create one
             if (!convId) {
-                // Check if a conversation already exists between these two users
+                // Check if a conversation already exists
                 const { data: existing, error: findError } = await supabase
                 .from('conversations')
                 .select('id')
@@ -75,31 +74,38 @@ export function useMessages(conversationId, recipientId) {
             .single();
 
             if (error) throw error;
-            return data;
+
+            // Return both the new message and the conversation ID
+            return { message: data, conversationId: convId };
         },
-        onSuccess: () => {
-            // Invalidate messages query to refetch
-            queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+        onSuccess: (result) => {
+            // Update our local conversation ID if it was null
+            if (!conversationId && result.conversationId) {
+                setConversationId(result.conversationId);
+            }
+            // Invalidate messages for this conversation
+            queryClient.invalidateQueries({ queryKey: ['messages', result.conversationId] });
             // Invalidate the central messaging cache (used by useData)
             queryClient.invalidateQueries({ queryKey: ['messaging', user?.id] });
         },
     });
 
+    // Manual refresh function (just invalidates the query)
+    const refreshMessages = () => {
+        queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+    };
+
     return {
         messages,
         loading: isLoading,
         error,
+        conversationId, // may be updated after send
         sendMessage: sendMutation.mutateAsync,
         sending: sendMutation.isPending,
-        // manual refresh – invalidate the messages query
-        refetch: () => queryClient.invalidateQueries({ queryKey: ['messages', conversationId] }),
+        refetch: refreshMessages,
     };
 }
 
-/**
- * Hook returning the total number of unread messages.
- * Reads from the central useData cache – no extra DB query.
- */
 export function useUnreadCount() {
     const { totalUnread = 0 } = useData();
     return totalUnread;
