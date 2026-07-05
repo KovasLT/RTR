@@ -25,7 +25,7 @@ export default function ChatWindow({ conversationId, recipient, onConversationCr
     try {
       await sendMessage(newMessage.trim());
       setNewMessage('');
-      refetch(); // optional, to show the message immediately
+      refetch();
     } catch (err) {
       console.error(err);
       alert('Failed to send message');
