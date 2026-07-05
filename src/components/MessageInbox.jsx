@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useData } from '../hooks/useData';
 import { APP_CONSTANTS } from '../app-constants';
 
@@ -11,7 +12,7 @@ export default function MessageInbox({ onSelectConversation, selectedId }) {
     setRefreshing(false);
   };
 
-  if (isLoading) return <div className="p-4 text-gray-500 text-center">Loading conversations...</div>;
+  if (!conversations) return <div className="p-4 text-gray-500 text-center">Loading conversations...</div>;
 
   return (
     <div className="h-full flex flex-col">
