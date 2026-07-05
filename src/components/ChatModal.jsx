@@ -46,6 +46,9 @@ export default function ChatModal({ isOpen, onClose, initialRecipient }) {
             <ChatWindow
               conversationId={selectedConversation}
               recipient={selectedRecipient}
+              onConversationCreated={(newConvId) => {
+                setSelectedConversation(newConvId);
+              }}
             />
           </div>
         </div>
