@@ -175,6 +175,7 @@ export default function TournamentsPanel() {
     return Math.round(sum / data.length);
   };
 
+  // ---------- UPDATED fetchTournaments ----------
   const fetchTournaments = async () => {
     setLoading(true);
     setError(null);
@@ -190,6 +191,20 @@ export default function TournamentsPanel() {
         return;
       }
 
+      // 1. Fetch creator profiles for all unique created_by IDs
+      const creatorIds = tournamentsData.map(t => t.created_by).filter(id => id);
+      let profilesMap = {};
+      if (creatorIds.length) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, display_name, handle')
+          .in('id', creatorIds);
+        if (!profilesError) {
+          profilesMap = Object.fromEntries(profilesData.map(p => [p.id, p]));
+        }
+      }
+
+      // 2. Enrich each tournament with participants, schedule, reported matches, bracket assignments, and creator info
       const tournamentsWithDetails = await Promise.all(
         tournamentsData.map(async (tournament) => {
           const participants = await fetchParticipantsForTournament(tournament.id, tournament.tournament_type);
@@ -218,9 +233,16 @@ export default function TournamentsPanel() {
           const assignments = await fetchBracketAssignments(tournament.id);
           setBracketAssignmentsMap(prev => ({ ...prev, [tournament.id]: assignments }));
 
-          return { ...tournament, participants, avgParticipantRating: avgRating };
+          // Attach the creator profile (if found)
+          return {
+            ...tournament,
+            participants,
+            avgParticipantRating: avgRating,
+            creator: profilesMap[tournament.created_by] || null
+          };
         })
       );
+
       setTournaments(tournamentsWithDetails);
     } catch (err) {
       console.error(err);
@@ -372,7 +394,13 @@ export default function TournamentsPanel() {
                 <div><span className="text-gray-500">Dates:</span> {selectedTournament.start_date} – {selectedTournament.end_date}</div>
                 <div><span className="text-gray-500">Format:</span> {selectedTournament.format?.replace('_', ' ')}</div>
                 <div><span className="text-gray-500">Elo Range:</span> {selectedTournament.min_elo} – {selectedTournament.max_elo}</div>
-                <div><span className="text-gray-500">Created by:</span> {selectedTournament.created_by?.slice(0,8)}…</div>
+                {/* UPDATED: show creator's display name or handle instead of raw UUID */}
+                <div>
+                  <span className="text-gray-500">Created by:</span>{' '}
+                  {selectedTournament.creator?.display_name ||
+                   selectedTournament.creator?.handle ||
+                   'Unknown'}
+                </div>
               </div>
 
               {/* Participants */}
