@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMessages } from '../hooks/useDirectMessages';
 import { useAuth } from '../hooks/useAuth';
-import { supabase } from '../lib/supabase';
 import InvitationMessage from './InvitationMessage';
 
-export default function ChatWindow({ conversationId: initialConvId, recipient, onConversationCreated }) {
+export default function ChatWindow({ conversationId, recipient, onConversationCreated }) {
   const { user } = useAuth();
   const {
     messages,
@@ -12,17 +11,9 @@ export default function ChatWindow({ conversationId: initialConvId, recipient, o
     sendMessage,
     sending,
     refetch,
-    conversationId: currentConvId,
-  } = useMessages(initialConvId, recipient?.id);
+  } = useMessages(conversationId, recipient?.id, onConversationCreated);
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef(null);
-
-  // When the conversation ID changes (new one created), notify parent
-  useEffect(() => {
-    if (currentConvId && currentConvId !== initialConvId && onConversationCreated) {
-      onConversationCreated(currentConvId);
-    }
-  }, [currentConvId, initialConvId, onConversationCreated]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -34,15 +25,14 @@ export default function ChatWindow({ conversationId: initialConvId, recipient, o
     try {
       await sendMessage(newMessage.trim());
       setNewMessage('');
-      // Optionally refetch to update the list immediately
-      refetch();
+      refetch(); // optional, to show the message immediately
     } catch (err) {
       console.error(err);
       alert('Failed to send message');
     }
   };
 
-  if (!recipient && !initialConvId) {
+  if (!recipient && !conversationId) {
     return (
       <div className="h-full flex items-center justify-center text-gray-500">
         Select a conversation to start messaging.
