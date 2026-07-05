@@ -28,6 +28,8 @@ import PlayerPanel from '../components/PlayerPanel';
 import CoachPanel from '../components/CoachPanel';
 import ScoutPanel from '../components/ScoutPanel';
 import TournamentsPanel from '../components/TournamentsPanel';
+import { useChat } from '../components/ChatContext';
+import { useData } from '../hooks/useData';
 
 const REASON = APP_CONSTANTS.DASHBOARD.RATING_REASONS;
 
@@ -176,13 +178,17 @@ const NavItem = ({ icon, label, active, accent, badge = 0, onClick, to }) => {
 };
 
 const Dashboard = () => {
-  const { user, roles, isAuthenticated, isLoading } = useAuth();
+  const { user, roles, isAuthenticated, isLoading: authLoading } = useAuth();
   const { data: profile } = useProfile(user?.id);
   const { data: myApps = [] } = useMyApplications(user?.id);
   const { data: myManagedTeams = [] } = useMyTeams(user?.id);
   const [active, setActive] = useState('overview');
 
-  if (isLoading) return <LoadingSpinner />;
+  // Use the central data hook – includes all static data + messaging (conversations, totalUnread)
+  const { totalUnread = 0, isLoading: dataLoading } = useData();
+  const { openChatWith } = useChat();
+
+  if (authLoading || dataLoading) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   const isAdmin = user?.isAdmin;
@@ -226,9 +232,24 @@ const Dashboard = () => {
       </nav>
 
       <div className="flex-grow min-w-0 space-y-6">
-        <div className="mb-2">
-          <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">{D.TITLE} {current !== 'overview' && <span className="mx-2">/</span>} {current !== 'overview' && sectionTitle}</div>
-          {current === 'overview' && <h2 className="text-3xl font-bold text-white">{sectionTitle}</h2>}
+        <div className="mb-2 flex items-center justify-between">
+          <div>
+            <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">{D.TITLE} {current !== 'overview' && <span className="mx-2">/</span>} {current !== 'overview' && sectionTitle}</div>
+            {current === 'overview' && <h2 className="text-3xl font-bold text-white">{sectionTitle}</h2>}
+          </div>
+          {/* Chat button with unread badge – uses totalUnread from useData */}
+          <button
+            onClick={() => openChatWith(null)}
+            className="relative p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition border border-gray-700 hover:border-gray-500"
+            title="Messages"
+          >
+            <i className="fas fa-envelope text-white text-xl"></i>
+            {totalUnread > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-lg">
+                {totalUnread > 9 ? '9+' : totalUnread}
+              </span>
+            )}
+          </button>
         </div>
 
         {current === 'overview' && (

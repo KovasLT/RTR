@@ -1,235 +1,106 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
+import { useData } from './useData';
 
-// -----------------------------------------------------------------------------
-// Direct messaging is TEMPORARILY DISABLED.
-//
-// The chat feature expects `messages` and `conversations` tables that don't
-// exist in the current Supabase project, so every query 404s — including the
-// header unread-count poller that runs on every page (the dashboard 404s).
-//
-// Flip CHAT_ENABLED back to true once those tables (+ RLS + grants) exist.
-// While disabled, every hook returns inert values and makes ZERO network calls.
-// -----------------------------------------------------------------------------
-const CHAT_ENABLED = false;
-
-// Fetch all conversations for the current user, with the other user's profile
-export function useConversations() {
-    const { user } = useAuth();
-    const [conversations, setConversations] = useState([]);
-    const [loading, setLoading] = useState(CHAT_ENABLED);
-
-    useEffect(() => {
-        if (!CHAT_ENABLED || !user) {
-            setLoading(false);
-            return;
-        }
-
-        const fetchConversations = async () => {
-            const { data: convs, error } = await supabase
-            .from('conversations')
-            .select('id, user1_id, user2_id, last_message, last_message_at, created_at')
-            .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
-            .order('last_message_at', { ascending: false });
-
-            if (error) {
-                console.error('Error fetching conversations:', error);
-                setLoading(false);
-                return;
-            }
-
-            if (!convs.length) {
-                setConversations([]);
-                setLoading(false);
-                return;
-            }
-
-            const otherUserIds = convs.map(conv =>
-            conv.user1_id === user.id ? conv.user2_id : conv.user1_id
-            );
-
-            const { data: profiles, error: profileError } = await supabase
-            .from('profiles')
-            .select('id, display_name, handle, avatar_url')
-            .in('id', otherUserIds);
-
-            if (profileError) {
-                console.error('Error fetching profiles:', profileError);
-                setLoading(false);
-                return;
-            }
-
-            const profilesMap = new Map(profiles.map(p => [p.id, p]));
-            const enriched = convs.map(conv => {
-                const otherId = conv.user1_id === user.id ? conv.user2_id : conv.user1_id;
-                return {
-                    ...conv,
-                    other_user: profilesMap.get(otherId) || { id: otherId, display_name: 'Unknown' }
-                };
-            });
-
-            setConversations(enriched);
-            setLoading(false);
-        };
-
-        fetchConversations();
-
-        // Real-time updates for conversations – correct order: add listeners then subscribe
-        const channel = supabase
-        .channel('conversations-channel')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversations' }, fetchConversations)
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversations' }, fetchConversations)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, fetchConversations);
-
-        channel.subscribe();
-
-        return () => channel.unsubscribe();
-    }, [user]);
-
-    return { conversations, loading };
-}
-
-// Hook for messages in a specific conversation
+/**
+ * Hook for fetching and sending messages in a specific conversation.
+ * Automatically creates a new conversation if none exists.
+ */
 export function useMessages(conversationId, recipientId) {
     const { user } = useAuth();
-    const [messages, setMessages] = useState([]);
-    const [loading, setLoading] = useState(CHAT_ENABLED);
-    const [currentConvId, setCurrentConvId] = useState(conversationId);
-    const [sending, setSending] = useState(false);
+    const queryClient = useQueryClient();
 
-    const fetchMessages = useCallback(async (convId) => {
-        const { data, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', convId)
-        .order('created_at', { ascending: true })
-        .limit(200);
-        if (!error) setMessages(data || []);
-    }, []);
-
-        const markAsRead = useCallback(async (convId) => {
-            if (!convId) return;
-            const { error } = await supabase
+    // Fetch messages if we have a conversation ID
+    const { data: messages = [], isLoading, error } = useQuery({
+        queryKey: ['messages', conversationId],
+        queryFn: async () => {
+            if (!conversationId) return [];
+            const { data, error } = await supabase
             .from('messages')
-            .update({ is_read: true })
-            .eq('conversation_id', convId)
-            .eq('receiver_id', user.id)
-            .eq('is_read', false);
-            if (error) console.error('Error marking messages as read:', error);
-        }, [user.id]);
+            .select('*')
+            .eq('conversation_id', conversationId)
+            .order('created_at', { ascending: true });
+            if (error) throw error;
+            return data || [];
+        },
+        enabled: !!conversationId,
+        staleTime: Infinity,          // never auto‑refetch
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+    });
 
-            useEffect(() => {
-                if (!CHAT_ENABLED) {
-                    setLoading(false);
-                    return;
-                }
+    // Mutation to send a message (and create conversation if needed)
+    const sendMutation = useMutation({
+        mutationFn: async (message) => {
+            if (!recipientId || !user) throw new Error('Missing recipient or user');
 
-                let channel = null;
+            let convId = conversationId;
 
-                const init = async () => {
-                    let convId = conversationId;
-                    if (!convId && recipientId) {
-                        const { data: existing } = await supabase
-                        .from('conversations')
-                        .select('id')
-                        .or(`and(user1_id.eq.${user.id},user2_id.eq.${recipientId}),and(user1_id.eq.${recipientId},user2_id.eq.${user.id})`)
-                        .maybeSingle();
-                        if (existing) {
-                            convId = existing.id;
-                        } else {
-                            const { data: newConv, error } = await supabase
-                            .from('conversations')
-                            .insert({ user1_id: user.id, user2_id: recipientId })
-                            .select()
-                            .single();
-                            if (!error) convId = newConv.id;
-                        }
-                        setCurrentConvId(convId);
-                    }
+            // If no conversation yet, create one
+            if (!convId) {
+                // Check if a conversation already exists between these two users
+                const { data: existing, error: findError } = await supabase
+                .from('conversations')
+                .select('id')
+                .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
+                .or(`user1_id.eq.${recipientId},user2_id.eq.${recipientId}`);
 
-                    if (convId) {
-                        await fetchMessages(convId);
-                        await markAsRead(convId);
+                if (findError) throw findError;
 
-                        // Create channel and add listener BEFORE subscribe
-                        channel = supabase
-                        .channel(`messages:${convId}`)
-                        .on('postgres_changes', {
-                            event: 'INSERT',
-                            schema: 'public',
-                            table: 'messages',
-                            filter: `conversation_id=eq.${convId}`
-                        }, async (payload) => {
-                            setMessages(prev => [...prev, payload.new]);
-                            if (payload.new.receiver_id === user.id && !payload.new.is_read) {
-                                await supabase.from('messages').update({ is_read: true }).eq('id', payload.new.id);
-                            }
-                        });
-
-                        channel.subscribe();
-                    }
-                    setLoading(false);
-                };
-
-                init();
-
-                return () => {
-                    if (channel) channel.unsubscribe();
-                };
-            }, [conversationId, recipientId, user.id, fetchMessages, markAsRead]);
-
-            const sendMessage = useCallback(async () => {
-                if (!CHAT_ENABLED) return;
-                if (sending) return;
-                setSending(true);
-                let convId = currentConvId;
-                if (!convId && recipientId) {
-                    const { data: existing } = await supabase
+                if (existing && existing.length > 0) {
+                    convId = existing[0].id;
+                } else {
+                    // Create new conversation
+                    const { data: newConv, error: createError } = await supabase
                     .from('conversations')
+                    .insert({ user1_id: user.id, user2_id: recipientId })
                     .select('id')
-                    .or(`and(user1_id.eq.${user.id},user2_id.eq.${recipientId}),and(user1_id.eq.${recipientId},user2_id.eq.${user.id})`)
-                    .maybeSingle();
-                    if (existing) {
-                        convId = existing.id;
-                    } else {
-                        const { data: newConv, error } = await supabase
-                        .from('conversations')
-                        .insert({ user1_id: user.id, user2_id: recipientId })
-                        .select()
-                        .single();
-                        if (error) throw error;
-                        convId = newConv.id;
-                    }
-                    setCurrentConvId(convId);
+                    .single();
+                    if (createError) throw createError;
+                    convId = newConv.id;
                 }
-                setSending(false);
-            }, [user.id, currentConvId, sending, recipientId]);
+            }
 
-            return { messages, loading, sendMessage, sending };
+            // Insert the message
+            const { data, error } = await supabase
+            .from('messages')
+            .insert({
+                conversation_id: convId,
+                sender_id: user.id,
+                receiver_id: recipientId,
+                message: message,
+            })
+            .select()
+            .single();
+
+            if (error) throw error;
+            return data;
+        },
+        onSuccess: () => {
+            // Invalidate messages query to refetch
+            queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+            // Invalidate the central messaging cache (used by useData)
+            queryClient.invalidateQueries({ queryKey: ['messaging', user?.id] });
+        },
+    });
+
+    return {
+        messages,
+        loading: isLoading,
+        error,
+        sendMessage: sendMutation.mutateAsync,
+        sending: sendMutation.isPending,
+        // manual refresh – invalidate the messages query
+        refetch: () => queryClient.invalidateQueries({ queryKey: ['messages', conversationId] }),
+    };
 }
 
-// Hook to get total unread count for the current user (polling version, no realtime errors)
+/**
+ * Hook returning the total number of unread messages.
+ * Reads from the central useData cache – no extra DB query.
+ */
 export function useUnreadCount() {
-    const { user } = useAuth();
-    const [unreadCount, setUnreadCount] = useState(0);
-
-    const fetchUnread = useCallback(async () => {
-        if (!CHAT_ENABLED || !user) return;
-        const { count, error } = await supabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('receiver_id', user.id)
-        .eq('is_read', false);
-        if (!error) setUnreadCount(count || 0);
-    }, [user]);
-
-        useEffect(() => {
-            if (!CHAT_ENABLED) return;
-            fetchUnread();
-            const interval = setInterval(fetchUnread, 10000);
-            return () => clearInterval(interval);
-        }, [fetchUnread]);
-
-        return { unreadCount };
+    const { totalUnread = 0 } = useData();
+    return totalUnread;
 }

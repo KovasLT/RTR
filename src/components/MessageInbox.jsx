@@ -1,50 +1,51 @@
-import { useState, useEffect } from 'react';
-import { useConversations } from '../hooks/useDirectMessages';
-import { supabase } from '../lib/supabase';
+import { useData } from '../hooks/useData';
+import { APP_CONSTANTS } from '../app-constants';
 
 export default function MessageInbox({ onSelectConversation, selectedId }) {
-  const { conversations, loading } = useConversations();
-  const [unreadCounts, setUnreadCounts] = useState({});
+  const { conversations, refetchMessages } = useData();
+  const [refreshing, setRefreshing] = useState(false);
 
-  const fetchUnreadCounts = async () => {
-    const counts = {};
-    for (const conv of conversations) {
-      const { count, error } = await supabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .eq('conversation_id', conv.id)
-        .eq('receiver_id', (await supabase.auth.getUser()).data.user?.id)
-        .eq('is_read', false);
-      if (!error) counts[conv.id] = count || 0;
-    }
-    setUnreadCounts(counts);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refetchMessages();
+    setRefreshing(false);
   };
 
-  useEffect(() => {
-    if (conversations.length) fetchUnreadCounts();
-  }, [conversations]);
-
-  // Subscribe to new messages to update unread counts in real time
-  useEffect(() => {
-    const subscription = supabase
-      .channel('inbox-unread')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => fetchUnreadCounts())
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, () => fetchUnreadCounts())
-      .subscribe();
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const handleSelect = (convId, otherUser) => {
-    onSelectConversation(convId, otherUser);
-    // Immediately clear the unread count for this conversation
-    setUnreadCounts(prev => ({ ...prev, [convId]: 0 }));
-  };
-
-  if (loading) return <div className="p-4 text-gray-500 text-center">Loading...</div>;
+  if (isLoading) return <div className="p-4 text-gray-500 text-center">Loading conversations...</div>;
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-3 border-b border-gray-800 font-bold text-white">Messages</div>
+      {/* Warning banner */}
+      <div className="p-3 border-b border-amber-800/40 bg-amber-900/20 text-amber-200 text-xs flex items-start gap-2">
+        <i className="fas fa-info-circle mt-0.5"></i>
+        <span>
+          This is a community‑run website, not a real‑time chat. For longer conversations, please use our{' '}
+          <a
+            href={APP_CONSTANTS.WELCOME.LINKS.DISCORD_INVITE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-amber-300 hover:text-amber-200 underline"
+          >
+            Discord server
+          </a>
+          .<br />
+          Messages are updated only when you log in or refresh manually.
+        </span>
+      </div>
+
+      <div className="p-3 border-b border-gray-800 flex justify-between items-center">
+        <div className="font-bold text-white">Messages</div>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="text-xs text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
+          title="Refresh messages"
+        >
+          <i className={`fas fa-sync-alt ${refreshing ? 'animate-spin' : ''}`}></i>
+          <span className="ml-1">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+        </button>
+      </div>
+
       <div className="flex-1 overflow-y-auto divide-y divide-gray-800">
         {conversations.length === 0 ? (
           <div className="p-4 text-gray-500 text-sm text-center">No conversations yet.</div>
@@ -52,7 +53,7 @@ export default function MessageInbox({ onSelectConversation, selectedId }) {
           conversations.map(conv => (
             <button
               key={conv.id}
-              onClick={() => handleSelect(conv.id, conv.other_user)}
+              onClick={() => onSelectConversation(conv.id, conv.other_user)}
               className={`w-full text-left p-3 hover:bg-gray-800/50 transition flex justify-between items-center ${selectedId === conv.id ? 'bg-gray-800' : ''}`}
             >
               <div className="flex-1 min-w-0">
@@ -61,9 +62,9 @@ export default function MessageInbox({ onSelectConversation, selectedId }) {
                 </div>
                 <div className="text-gray-400 text-xs truncate">{conv.last_message || 'No messages yet'}</div>
               </div>
-              {unreadCounts[conv.id] > 0 && (
+              {conv.unread_count > 0 && (
                 <span className="bg-indigo-600 text-white text-xs rounded-full px-2 py-0.5 ml-2">
-                  {unreadCounts[conv.id]}
+                  {conv.unread_count}
                 </span>
               )}
             </button>

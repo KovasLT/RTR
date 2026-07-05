@@ -6,7 +6,7 @@ import InvitationMessage from './InvitationMessage';
 
 export default function ChatWindow({ conversationId, recipient }) {
   const { user } = useAuth();
-  const { messages, loading, sendMessage, sending } = useMessages(conversationId, recipient?.id);
+  const { messages, loading, sendMessage, sending, refetch } = useMessages(conversationId, recipient?.id);
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef(null);
 
@@ -20,6 +20,8 @@ export default function ChatWindow({ conversationId, recipient }) {
     try {
       await sendMessage(recipient?.id, newMessage.trim());
       setNewMessage('');
+      // Optionally refetch to update the list immediately
+      refetch();
     } catch (err) {
       console.error(err);
       alert('Failed to send message');
@@ -38,9 +40,19 @@ export default function ChatWindow({ conversationId, recipient }) {
 
   return (
     <div className="bg-[#151922] rounded-xl border border-gray-800 flex flex-col h-full">
-      <div className="px-4 py-3 border-b border-gray-800">
-        <div className="text-white font-bold">{recipientName}</div>
-        <div className="text-gray-500 text-xs">Direct message • Messages expire after 2 days</div>
+      <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+        <div>
+          <div className="text-white font-bold">{recipientName}</div>
+          <div className="text-gray-500 text-xs">Direct message • Messages expire after 2 days</div>
+        </div>
+        {/* Manual refresh button */}
+        <button
+          onClick={() => refetch()}
+          className="text-gray-400 hover:text-white transition text-sm p-1 rounded-full hover:bg-gray-700"
+          title="Refresh messages"
+        >
+          <i className="fas fa-sync-alt"></i>
+        </button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {loading ? (
