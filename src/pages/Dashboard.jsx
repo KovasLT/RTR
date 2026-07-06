@@ -11,7 +11,7 @@ import {
   useTeamMutations,
 } from '../hooks/useTeams.js';
 import { useScoutsWatchingMe, useMyWatchlist, useScoutMutations } from '../hooks/useScouting.js';
-import { useEndorsements } from '../hooks/useEndorsements.js';
+// ❌ Removed: import { useEndorsements } from '../hooks/useEndorsements.js';
 import { supabase } from '../lib/supabase';
 import { APP_CONSTANTS } from '../app-constants';
 import LoadingSpinner from '../components/LoadingSpinner';
