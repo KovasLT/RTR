@@ -54,6 +54,9 @@ const TeamManage = () => {
   const [form, setForm] = useState(null);
   const [error, setError] = useState(null);
 
+  // Filter active members (left_at is null)
+  const activeMembers = useMemo(() => (team?.members ?? []).filter(m => m.left_at === null), [team]);
+
   // Fetch team rank (global position)
   const fetchTeamRank = async () => {
     if (!team) return;
@@ -69,7 +72,7 @@ const TeamManage = () => {
     const fetchTeamStats = async () => {
       setLoadingExtra(true);
       try {
-        // Recent matches (only 3) – using approved/rejected
+        // Recent matches (only 3)
         const { data: matches } = await supabase
           .from('matches')
           .select(`
@@ -81,8 +84,8 @@ const TeamManage = () => {
             team_b:teams!team_b_id(id, name, tag)
           `)
           .or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id}`)
-          .eq('approved', true)    // ✅ fixed
-          .eq('rejected', false)   // ✅ fixed
+          .eq('approved', true)
+          .eq('rejected', false)
           .order('created_at', { ascending: false })
           .limit(3);
         setRecentMatches(matches || []);
@@ -99,13 +102,13 @@ const TeamManage = () => {
           .order('placement', { ascending: true });
         setTournamentPlacements(placements || []);
 
-        // Win rate from all matches – using approved/rejected
+        // Win rate
         const { data: allMatches } = await supabase
           .from('matches')
           .select('score_team_a, score_team_b, team_a_id, team_b_id')
           .or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id}`)
-          .eq('approved', true)    // ✅ fixed
-          .eq('rejected', false);  // ✅ fixed
+          .eq('approved', true)
+          .eq('rejected', false);
         if (allMatches && allMatches.length) {
           let wins = 0;
           allMatches.forEach(m => {
@@ -118,8 +121,8 @@ const TeamManage = () => {
         } else setWinRate(null);
 
         // Average player rating
-        if (team.members && team.members.length) {
-          const memberIds = team.members.map(m => m.user_id);
+        if (activeMembers.length) {
+          const memberIds = activeMembers.map(m => m.user_id);
           const { data: ratings } = await supabase
             .from('ratings')
             .select('subject_id, rating')
@@ -140,7 +143,7 @@ const TeamManage = () => {
       }
     };
     fetchTeamStats();
-  }, [team]);
+  }, [team, activeMembers]);
 
   // Fetch rating history
   useEffect(() => {
@@ -178,7 +181,7 @@ const TeamManage = () => {
     return () => { active = false; };
   }, [team]);
 
-  const memberIds = useMemo(() => new Set((team?.members ?? []).map((m) => m.user_id)), [team]);
+  const memberIds = useMemo(() => new Set(activeMembers.map((m) => m.user_id)), [activeMembers]);
   const pendingApplies = (team?.applications ?? []).filter(
     (a) => a.status === 'pending' && a.type === 'apply'
   );
@@ -199,8 +202,9 @@ const TeamManage = () => {
     try {
       await fn();
       refetch();
-      if (team) await fetchTeamRank(); // update rank after changes
+      if (team) await fetchTeamRank();
     } catch (err) {
+      console.error(err);
       setError(err.message || T.ERROR);
     }
   };
@@ -407,13 +411,13 @@ const TeamManage = () => {
         <div className="rtr-card">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-md font-semibold text-white">Roster</h3>
-            <span className="text-xs text-gray-500">{team.members.length} players</span>
+            <span className="text-xs text-gray-500">{activeMembers.length} players</span>
           </div>
-          {team.members.length === 0 ? (
+          {activeMembers.length === 0 ? (
             <p className="text-xs text-gray-400">{T.ROSTER_EMPTY}</p>
           ) : (
             <div className="space-y-1.5">
-              {team.members.map((m) => (
+              {activeMembers.map((m) => (
                 <div key={m.user_id} className="flex items-center justify-between bg-gray-800/30 p-2 rounded text-sm">
                   <div>
                     <Link to={`/profile/${m.user_id}`} className="text-white hover:text-indigo-300">
