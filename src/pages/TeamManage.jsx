@@ -69,7 +69,7 @@ const TeamManage = () => {
     const fetchTeamStats = async () => {
       setLoadingExtra(true);
       try {
-        // Recent matches (only 3)
+        // Recent matches (only 3) – using approved/rejected
         const { data: matches } = await supabase
           .from('matches')
           .select(`
@@ -81,7 +81,8 @@ const TeamManage = () => {
             team_b:teams!team_b_id(id, name, tag)
           `)
           .or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id}`)
-          .eq('status', 'confirmed')
+          .eq('approved', true)    // ✅ fixed
+          .eq('rejected', false)   // ✅ fixed
           .order('created_at', { ascending: false })
           .limit(3);
         setRecentMatches(matches || []);
@@ -98,12 +99,13 @@ const TeamManage = () => {
           .order('placement', { ascending: true });
         setTournamentPlacements(placements || []);
 
-        // Win rate from all matches
+        // Win rate from all matches – using approved/rejected
         const { data: allMatches } = await supabase
           .from('matches')
           .select('score_team_a, score_team_b, team_a_id, team_b_id')
           .or(`team_a_id.eq.${team.id},team_b_id.eq.${team.id}`)
-          .eq('status', 'confirmed');
+          .eq('approved', true)    // ✅ fixed
+          .eq('rejected', false);  // ✅ fixed
         if (allMatches && allMatches.length) {
           let wins = 0;
           allMatches.forEach(m => {
