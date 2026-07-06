@@ -52,7 +52,7 @@ export const useData = () => {
                                stats: statsResponse,
       };
     },
-    staleTime: Infinity, // never auto-refetch
+    staleTime: Infinity,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
@@ -110,7 +110,8 @@ export const useData = () => {
 
         return {
           id: conv.id,
-          other_user: profile || { display_name: 'Unknown', handle: '' },
+          // ✅ FIX: include id even if profile is missing
+          other_user: profile || { id: otherUserId, display_name: 'Unknown', handle: '' },
           last_message: lastMessage,
           unread_count: unreadCount || 0,
         };
@@ -130,7 +131,7 @@ export const useData = () => {
         totalUnread: totalUnread || 0,
       };
     },
-    enabled: !!user, // only run when user is logged in
+    enabled: !!user,
     staleTime: Infinity,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
@@ -160,7 +161,7 @@ export const useData = () => {
     ...staticData,
     conversations: messagingData.conversations,
     totalUnread: messagingData.totalUnread,
-    refetchMessages: messagingQuery.refetch, // for manual refresh in inbox
+    refetchMessages: messagingQuery.refetch,
     isLoading,
     error,
   };

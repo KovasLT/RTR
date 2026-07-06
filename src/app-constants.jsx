@@ -451,7 +451,7 @@ export const APP_CONSTANTS = {
   // ========================================
   WELCOME: {
     HEADING: 'Welcome to',
-    SUBTITLE: 'The central hub for Honor of Kings competitive rankings, team building, and community tournaments.',
+    SUBTITLE: 'The central community hub for MOBA community teams competitive rankings, team building, and community tournaments.',
     CALL_TO_ACTION: 'Sign in with Discord to view live statistics, track your Elo rating, and manage your rosters.',
     COMMUNITIES_TITLE: 'Join our Communities',
     COMMUNITIES_TEXT: 'Corener is a community project, currently not affiliated or endorsed by any game. We seek to help competitive players achieve their dreams. For more information join our discord servers or check INFORMATION panel:',

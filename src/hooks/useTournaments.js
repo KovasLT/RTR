@@ -26,6 +26,7 @@ export function useTournaments(userId) {
     enabled: true,
   });
 
+  // ✅ CREATE tournament
   const createTournament = useMutation({
     mutationFn: async (payload) => {
       if (!userId) throw new Error('User ID required to create tournament');
@@ -43,10 +44,31 @@ export function useTournaments(userId) {
     },
   });
 
+  // ✅ UPDATE tournament – the missing function
+  const updateTournament = useMutation({
+    mutationFn: async ({ id, ...updates }) => {
+      if (!userId) throw new Error('User ID required to update tournament');
+      const { data, error } = await supabase
+      .from('tournaments')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['tournaments', userId] });
+      queryClient.invalidateQueries({ queryKey: ['tournaments', 'all'] });
+      queryClient.invalidateQueries({ queryKey: ['tournament', data.id] });
+    },
+  });
+
   return {
     data: tournamentsQuery.data || [],
     isLoading: tournamentsQuery.isLoading,
     createTournament,
+    updateTournament, // now exposed
   };
 }
 
@@ -96,7 +118,6 @@ export function useSingleTournament(tournamentId) {
 
       // Insert matches into unified `matches` table
       if (matches && matches.length > 0) {
-        // Map match data to the unified schema
         const unifiedMatches = matches.map(m => ({
           tournament_id: id,
           round: m.round,
