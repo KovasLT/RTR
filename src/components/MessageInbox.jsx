@@ -1,15 +1,40 @@
 import { useState } from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
 import { useData } from '../hooks/useData';
 import { APP_CONSTANTS } from '../app-constants';
 
 export default function MessageInbox({ onSelectConversation, selectedId }) {
+  const { user } = useAuth();
   const { conversations, refetchMessages } = useData();
   const [refreshing, setRefreshing] = useState(false);
+
+  // Mark all unread messages in a conversation as read
+  const markConversationAsRead = async (conversationId) => {
+    if (!conversationId || !user) return;
+    const { error } = await supabase
+      .from('messages')
+      .update({ is_read: true })
+      .eq('conversation_id', conversationId)
+      .eq('receiver_id', user.id)
+      .eq('is_read', false);
+    if (error) console.error('Error marking messages as read:', error);
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await refetchMessages();
     setRefreshing(false);
+  };
+
+  // When a conversation is selected, mark as read, refresh, then open it
+  const handleSelect = async (convId, otherUser) => {
+    if (convId) {
+      await markConversationAsRead(convId);
+      // Refresh the messaging data to update the unread counts
+      await refetchMessages();
+    }
+    onSelectConversation(convId, otherUser);
   };
 
   if (!conversations) return <div className="p-4 text-gray-500 text-center">Loading conversations...</div>;
@@ -54,7 +79,7 @@ export default function MessageInbox({ onSelectConversation, selectedId }) {
           conversations.map(conv => (
             <button
               key={conv.id}
-              onClick={() => onSelectConversation(conv.id, conv.other_user)}
+              onClick={() => handleSelect(conv.id, conv.other_user)}
               className={`w-full text-left p-3 hover:bg-gray-800/50 transition flex justify-between items-center ${selectedId === conv.id ? 'bg-gray-800' : ''}`}
             >
               <div className="flex-1 min-w-0">
