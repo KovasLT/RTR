@@ -53,7 +53,7 @@ useQuery({
              `id, name, tag, logo_url, status, recruitment_note, manager_id,
              region:regions(id,code,name),
                    members:team_members(
-                     user_id, lane_id, is_captain, joined_at,
+                     user_id, lane_id, is_captain, joined_at, left_at,
                      profile:profiles(id, display_name, handle, avatar_url),
                                         lane:lanes(id,name)
                    ),

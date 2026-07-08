@@ -44,19 +44,12 @@ export default function ChatWindow({ conversationId, recipient, onConversationCr
 
   return (
     <div className="bg-[#151922] rounded-xl border border-gray-800 flex flex-col h-full">
-      <div className="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
-        <div>
-          <div className="text-white font-bold">{recipientName}</div>
-          <div className="text-gray-500 text-xs">Direct message • Messages expire after 2 days</div>
-        </div>
-        <button
-          onClick={refetch}
-          className="text-gray-400 hover:text-white transition text-sm p-1 rounded-full hover:bg-gray-700"
-          title="Refresh messages"
-        >
-          <i className="fas fa-sync-alt"></i>
-        </button>
+      {/* Header – no refresh button */}
+      <div className="px-4 py-3 border-b border-gray-800">
+        <div className="text-white font-bold">{recipientName}</div>
+        <div className="text-gray-500 text-xs">Direct message • Messages expire after 2 days</div>
       </div>
+
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {loading ? (
           <div className="text-gray-500 text-center">Loading...</div>
@@ -103,6 +96,7 @@ export default function ChatWindow({ conversationId, recipient, onConversationCr
         )}
         <div ref={messagesEndRef} />
       </div>
+
       <form onSubmit={handleSend} className="p-3 border-t border-gray-800 flex gap-2">
         <input
           type="text"
