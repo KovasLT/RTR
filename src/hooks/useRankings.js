@@ -18,7 +18,7 @@ export const useTeamRankings = () => {
       .in('subject_id', teamIds);
       const ratingMap = new Map((ratings || []).map(r => [r.subject_id, r.rating]));
 
-      // ✅ Only count active members (left_at IS NULL)
+      // ✅ Only active members (left_at IS NULL)
       const { data: members } = await supabase
       .from('team_members')
       .select('team_id')

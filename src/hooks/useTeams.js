@@ -25,7 +25,7 @@ useQuery({
            const { data, error } = await supabase
            .from('teams')
            .select(
-             'id, name, tag, logo_url, status, region:regions(code,name), members:team_members(user_id), applications(id,status)',
+             'id, name, tag, logo_url, status, region:regions(code,name), members:team_members(user_id, left_at), applications(id,status)',
            )
            .eq('manager_id', managerId)
            .order('created_at', { ascending: true });
@@ -33,12 +33,15 @@ useQuery({
 
            const teams = data ?? [];
            const ratings = await ratingFor(teams.map((t) => t.id));
-           return teams.map((t) => ({
-             ...t,
-             memberCount: (t.members ?? []).length,
-                                    pendingCount: (t.applications ?? []).filter((a) => a.status === 'pending').length,
-                                    rating: ratings.get(t.id) ?? null,
-           }));
+           return teams.map((t) => {
+             const activeMembers = (t.members ?? []).filter(m => m.left_at === null);
+             return {
+               ...t,
+               memberCount: activeMembers.length,
+               pendingCount: (t.applications ?? []).filter((a) => a.status === 'pending').length,
+                            rating: ratings.get(t.id) ?? null,
+             };
+           });
          },
 });
 
@@ -53,7 +56,7 @@ useQuery({
              `id, name, tag, logo_url, status, recruitment_note, manager_id,
              region:regions(id,code,name),
                    members:team_members(
-                     user_id, lane_id, is_captain, joined_at, left_at,
+                     user_id, lane_id, is_captain, role, joined_at, left_at,
                      profile:profiles(id, display_name, handle, avatar_url),
                                         lane:lanes(id,name)
                    ),
@@ -83,7 +86,7 @@ useQuery({
          queryFn: async () => {
            const { data, error } = await supabase
            .from('teams')
-           .select('id, name, tag, recruitment_note, region:regions(id, code), members:team_members(user_id)')
+           .select('id, name, tag, recruitment_note, region:regions(id, code), members:team_members(user_id, left_at)')
            .eq('status', 'recruiting');
            if (error) throw error;
            return (data ?? []).map((t) => ({
@@ -93,7 +96,7 @@ useQuery({
              note: t.recruitment_note,
              regionId: t.region?.id ?? null,
              regionCode: t.region?.code ?? null,
-             memberCount: (t.members ?? []).length,
+             memberCount: (t.members ?? []).filter(m => m.left_at === null).length,
            }));
          },
 });
@@ -130,8 +133,9 @@ useQuery({
          queryFn: async () => {
            const { data, error } = await supabase
            .from('team_members')
-           .select('team_id, is_captain, lane:lanes(name), team:teams(id, name, tag, status, region:regions(code))')
-           .eq('user_id', userId);
+           .select('team_id, is_captain, role, lane:lanes(name), team:teams(id, name, tag, status, region:regions(code))')
+           .eq('user_id', userId)
+           .is('left_at', null); // only active
            if (error) throw error;
 
            const rows = (data ?? []).filter((r) => r.team);
@@ -144,6 +148,7 @@ useQuery({
              regionCode: r.team.region?.code || null,
              lane: r.lane?.name || null,
              isCaptain: r.is_captain,
+             role: r.role || 'player',
              rating: ratings.get(r.team_id) ?? null,
            }));
          },
@@ -226,28 +231,40 @@ export const useTeamMutations = () => {
                                    onSuccess: invalidate,
   });
 
-  // NEW: Add a team member (insert)
+  // ✅ FIXED: re‑add if left_at is not null
   const addTeamMember = useMutation({
-    mutationFn: async ({ teamId, userId, laneId, isCaptain }) => {
-      // Check if already a member to avoid unique violation
+    mutationFn: async ({ teamId, userId, laneId, role }) => {
+      // Check existing membership (including left)
       const { data: existing } = await supabase
       .from('team_members')
-      .select('user_id')
+      .select('user_id, left_at')
       .eq('team_id', teamId)
       .eq('user_id', userId)
       .maybeSingle();
       if (existing) {
-        // Already a member, just return silently or throw a friendly error
-        throw new Error('User is already a member of this team');
+        if (existing.left_at !== null) {
+          // Re‑activate: set left_at = null, update role/lane
+          return unwrap(
+            supabase
+            .from('team_members')
+            .update({ left_at: null, lane_id: laneId || null, role: role || 'player' })
+            .eq('team_id', teamId)
+            .eq('user_id', userId)
+          );
+        } else {
+          throw new Error('User is already an active member of this team');
+        }
+      } else {
+        // New member
+        return unwrap(
+          supabase.from('team_members').insert({
+            team_id: teamId,
+            user_id: userId,
+            lane_id: laneId || null,
+            role: role || 'player',
+          })
+        );
       }
-      return unwrap(
-        supabase.from('team_members').insert({
-          team_id: teamId,
-          user_id: userId,
-          lane_id: laneId || null,
-          is_captain: isCaptain || false,
-        })
-      );
     },
     onSuccess: invalidate,
   });
@@ -291,7 +308,7 @@ export const useTeamMutations = () => {
       .update({ left_at: new Date().toISOString() })
       .eq('team_id', teamId)
       .eq('user_id', userId)
-      .is('left_at', null) // only update if not already left
+      .is('left_at', null),
     ),
     onSuccess: invalidate,
   });

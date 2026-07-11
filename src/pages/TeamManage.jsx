@@ -19,6 +19,9 @@ const STATUS_OPTIONS = [
   { value: 'inactive', label: T.STATUS_INACTIVE },
 ];
 
+// team roles for members
+const TEAM_ROLES = ['player', 'captain', 'coach', 'analyst', 'substitute'];
+
 const personName = (p) => p?.display_name || p?.handle || 'Unknown';
 
 const winProbability = (ratingA, ratingB) => {
@@ -54,10 +57,9 @@ const TeamManage = () => {
   const [form, setForm] = useState(null);
   const [error, setError] = useState(null);
 
-  // Filter active members (left_at is null)
+  // Filter active members
   const activeMembers = useMemo(() => (team?.members ?? []).filter(m => m.left_at === null), [team]);
 
-  // Fetch team rank (global position)
   const fetchTeamRank = async () => {
     if (!team) return;
     const { count, error } = await supabase
@@ -72,7 +74,6 @@ const TeamManage = () => {
     const fetchTeamStats = async () => {
       setLoadingExtra(true);
       try {
-        // Recent matches (only 3)
         const { data: matches } = await supabase
           .from('matches')
           .select(`
@@ -90,7 +91,6 @@ const TeamManage = () => {
           .limit(3);
         setRecentMatches(matches || []);
 
-        // Tournament placements
         const { data: placements } = await supabase
           .from('tournament_teams')
           .select(`
@@ -102,7 +102,6 @@ const TeamManage = () => {
           .order('placement', { ascending: true });
         setTournamentPlacements(placements || []);
 
-        // Win rate
         const { data: allMatches } = await supabase
           .from('matches')
           .select('score_team_a, score_team_b, team_a_id, team_b_id')
@@ -120,7 +119,6 @@ const TeamManage = () => {
           setWinRate(Math.round((wins / allMatches.length) * 100));
         } else setWinRate(null);
 
-        // Average player rating
         if (activeMembers.length) {
           const memberIds = activeMembers.map(m => m.user_id);
           const { data: ratings } = await supabase
@@ -134,7 +132,6 @@ const TeamManage = () => {
           } else setAvgPlayerRating(null);
         } else setAvgPlayerRating(null);
 
-        // Rank
         await fetchTeamRank();
       } catch (err) {
         console.error(err);
@@ -145,7 +142,6 @@ const TeamManage = () => {
     fetchTeamStats();
   }, [team, activeMembers]);
 
-  // Fetch rating history
   useEffect(() => {
     if (!team) return;
     const fetchRatingHistory = async () => {
@@ -163,7 +159,6 @@ const TeamManage = () => {
     fetchRatingHistory();
   }, [team]);
 
-  // Initialize form when team loads
   useEffect(() => {
     if (!team) return;
     let active = true;
@@ -225,6 +220,21 @@ const TeamManage = () => {
       })
     );
     setShowSettings(false);
+  };
+
+  // Handler to add myself with a role
+  const handleAddMyself = async () => {
+    // We'll use a simple prompt for role, or we can set a default
+    const role = window.prompt('Enter your role (player, captain, coach, analyst, substitute):', 'player');
+    if (role === null) return; // cancelled
+    if (!TEAM_ROLES.includes(role)) {
+      alert('Invalid role. Choose from: ' + TEAM_ROLES.join(', '));
+      return;
+    }
+    act(async () => {
+      await addTeamMember.mutateAsync({ teamId: team.id, userId: user.id, laneId: null, role });
+      refetch();
+    });
   };
 
   return (
@@ -308,7 +318,6 @@ const TeamManage = () => {
         </div>
       )}
 
-      {/* Edit form – appears right below stats when active */}
       {isManager && showSettings && form && (
         <form onSubmit={saveDetails} className="rtr-card space-y-3">
           <h3 className="text-md font-semibold text-white">Edit team</h3>
@@ -363,7 +372,6 @@ const TeamManage = () => {
         </div>
       )}
 
-      {/* Achievements */}
       {!loadingExtra && tournamentPlacements.length > 0 && (
         <div className="rtr-card">
           <h3 className="text-md font-semibold text-white mb-2">Achievements</h3>
@@ -381,7 +389,6 @@ const TeamManage = () => {
         </div>
       )}
 
-      {/* Rating History – full width */}
       <div className="rtr-card">
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-md font-semibold text-white">Team Rating History</h3>
@@ -405,7 +412,6 @@ const TeamManage = () => {
         )}
       </div>
 
-      {/* Side‑by‑side: Roster + Staff */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Roster */}
         <div className="rtr-card">
@@ -424,10 +430,25 @@ const TeamManage = () => {
                       {personName(m.profile)}
                       {m.is_captain && <span className="ml-1 text-[9px] bg-amber-900/50 text-amber-300 px-1 py-0.5 rounded">C</span>}
                     </Link>
-                    <div className="text-[10px] text-gray-500">{m.lane?.name || 'No lane'}</div>
+                    <div className="text-[10px] text-gray-500">
+                      {m.lane?.name || 'No lane'} · Role: {m.role || 'player'}
+                    </div>
                   </div>
                   {isManager && (
                     <div className="flex gap-1">
+                      <button
+                        onClick={() => {
+                          const newRole = window.prompt('Enter new role (player, captain, coach, analyst, substitute):', m.role || 'player');
+                          if (newRole && TEAM_ROLES.includes(newRole)) {
+                            act(() => updateMember.mutateAsync({ teamId: team.id, userId: m.user_id, patch: { role: newRole } }));
+                          } else if (newRole !== null) {
+                            alert('Invalid role. Choose from: ' + TEAM_ROLES.join(', '));
+                          }
+                        }}
+                        className="text-[10px] text-gray-300 hover:text-indigo-300"
+                      >
+                        Change Role
+                      </button>
                       <button
                         onClick={() => act(() => updateMember.mutateAsync({ teamId: team.id, userId: m.user_id, patch: { is_captain: !m.is_captain } }))}
                         className="text-[10px] text-gray-300 hover:text-indigo-300"
@@ -449,10 +470,7 @@ const TeamManage = () => {
           {isManager && !memberIds.has(user.id) && (
             <div className="mt-3 pt-2 border-t border-gray-700">
               <button
-                onClick={() => act(async () => {
-                  await addTeamMember.mutateAsync({ teamId: team.id, userId: user.id, laneId: null, isCaptain: false });
-                  refetch();
-                })}
+                onClick={handleAddMyself}
                 className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded"
               >
                 <i className="fas fa-user-plus mr-1"></i> Add myself as player
@@ -499,7 +517,6 @@ const TeamManage = () => {
         </div>
       </div>
 
-      {/* Side‑by‑side: Pending Applications + Recent Matches */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {isManager ? (
           <div className="rtr-card">
@@ -608,7 +625,7 @@ const TeamManage = () => {
   );
 };
 
-// Helper component: AddStaff
+// Helper component: AddStaff (unchanged)
 const STAFF_ROLE_OPTIONS = ['coach', 'scout', 'analyst'];
 const AddStaff = ({ existingIds, onAdd }) => {
   const { data: people = [] } = useDirectory();
