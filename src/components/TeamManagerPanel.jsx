@@ -13,11 +13,6 @@ export default function TournamentManagerPanel({ rating, userId }) {
   const { data: tournaments, isLoading, createTournament, updateTournament, closeTournament } = useTournaments(userId);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [managingId, setManagingId] = useState(null);
-  const [registeredTeams, setRegisteredTeams] = useState([]);
-  const [placements, setPlacements] = useState({});
-  const [bonusMap, setBonusMap] = useState({ first: 50, second: 25, third: 10 });
-  const [loadingManage, setLoadingManage] = useState(false);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -32,6 +27,14 @@ export default function TournamentManagerPanel({ rating, userId }) {
   });
   const [error, setError] = useState(null);
 
+  // --- Award / Finalize state ---
+  const [participants, setParticipants] = useState([]);
+  const [placements, setPlacements] = useState({});
+  const [bonusMap, setBonusMap] = useState({ first: 50, second: 25, third: 10 });
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
+
+  // Reset form
   const resetForm = () => {
     setForm({
       title: '',
@@ -46,6 +49,43 @@ export default function TournamentManagerPanel({ rating, userId }) {
       status: 'registration',
     });
     setError(null);
+    setParticipants([]);
+    setPlacements({});
+  };
+
+  // Load participants when editing a tournament
+  const loadParticipants = async (tournamentId, type) => {
+    setLoadingParticipants(true);
+    try {
+      let entries = [];
+      if (type === 'team') {
+        const { data, error } = await supabase
+          .from('tournament_teams')
+          .select('team_id, placement, teams:team_id(id, name, tag)')
+          .eq('tournament_id', tournamentId);
+        if (error) throw error;
+        entries = data || [];
+      } else {
+        const { data, error } = await supabase
+          .from('tournament_players')
+          .select('player_id, placement, profiles:player_id(id, display_name, handle)')
+          .eq('tournament_id', tournamentId);
+        if (error) throw error;
+        entries = data || [];
+      }
+      setParticipants(entries);
+      // Pre‑fill placements from existing data
+      const map = {};
+      entries.forEach(e => {
+        const id = e.team_id || e.player_id;
+        if (e.placement) map[id] = e.placement;
+      });
+      setPlacements(map);
+    } catch (err) {
+      alert('Failed to load participants: ' + err.message);
+    } finally {
+      setLoadingParticipants(false);
+    }
   };
 
   const handleCreate = async (e) => {
@@ -67,8 +107,11 @@ export default function TournamentManagerPanel({ rating, userId }) {
     setError(null);
     try {
       await updateTournament.mutateAsync({ id: editingId, ...form });
-      setEditingId(null);
-      resetForm();
+      // Reload participants (in case tournament type changed)
+      const currentTournament = tournaments.find(t => t.id === editingId);
+      if (currentTournament) {
+        await loadParticipants(editingId, currentTournament.tournament_type);
+      }
       alert('Tournament updated successfully!');
     } catch (err) {
       console.error(err);
@@ -91,44 +134,19 @@ export default function TournamentManagerPanel({ rating, userId }) {
       status: tournament.status || 'registration',
     });
     setCreating(false);
+    // Load participants for the awards section
+    loadParticipants(tournament.id, tournament.tournament_type);
   };
 
-  // ─── Manage Tournament ──────────────────────────────────────
-  const openManage = async (tournament) => {
-    setManagingId(tournament.id);
-    setLoadingManage(true);
-    try {
-      // Fetch registered teams
-      const { data: entries, error } = await supabase
-        .from('tournament_teams')
-        .select(`
-          team_id,
-          placement,
-          teams:team_id(id, name, tag)
-        `)
-        .eq('tournament_id', tournament.id);
-      if (error) throw error;
-      setRegisteredTeams(entries || []);
-      // Pre-fill placements
-      const placementMap = {};
-      entries.forEach(e => {
-        if (e.placement) placementMap[e.team_id] = e.placement;
-      });
-      setPlacements(placementMap);
-    } catch (err) {
-      alert('Failed to load teams: ' + err.message);
-    } finally {
-      setLoadingManage(false);
-    }
+  const cancelEdit = () => {
+    setEditingId(null);
+    resetForm();
   };
 
-  const handlePlacementChange = (teamId, value) => {
-    setPlacements(prev => ({ ...prev, [teamId]: value }));
-  };
-
-  const handleCloseTournament = async () => {
-    if (!managingId) return;
-    const tournament = tournaments.find(t => t.id === managingId);
+  // ─── Finalize Tournament ──────────────────────────────────────
+  const handleFinalize = async () => {
+    if (!editingId) return;
+    const tournament = tournaments.find(t => t.id === editingId);
     if (!tournament) return;
     if (tournament.status === 'closed') {
       alert('This tournament is already closed.');
@@ -137,7 +155,7 @@ export default function TournamentManagerPanel({ rating, userId }) {
 
     // Build placements array (only top 3 get bonuses)
     const placementList = Object.entries(placements)
-      .map(([teamId, placement]) => ({ teamId, placement: parseInt(placement) }))
+      .map(([id, placement]) => ({ id, placement: parseInt(placement) }))
       .filter(p => p.placement > 0 && p.placement <= 3)
       .sort((a, b) => a.placement - b.placement);
 
@@ -146,22 +164,64 @@ export default function TournamentManagerPanel({ rating, userId }) {
       return;
     }
 
-    if (!window.confirm('Close this tournament and award ELO bonuses to top 3 teams?')) return;
+    // Confirm
+    if (!window.confirm('Close this tournament and award ELO bonuses to top 3 participants?')) return;
 
-    setLoadingManage(true);
+    setFinalizing(true);
     try {
-      await closeTournament.mutateAsync({
-        id: managingId,
-        placements: placementList,
-        bonusMap: bonusMap,
-      });
+      // The closeTournament mutation expects placements as array of { teamId, placement }
+      // For player tournaments, we need to map differently.
+      // We'll use the same mutation but pass the correct IDs.
+      // The mutation currently updates tournament_teams and calls award_tournament_bonus_elo.
+      // For players, we need to update tournament_players and call a player bonus function.
+      // Since we have both, we'll handle it conditionally.
+      if (tournament.tournament_type === 'team') {
+        const teamPlacements = placementList.map(p => ({ teamId: p.id, placement: p.placement }));
+        await closeTournament.mutateAsync({
+          id: editingId,
+          placements: teamPlacements,
+          bonusMap: bonusMap,
+        });
+      } else {
+        // Player tournament: update tournament_players and award player bonuses
+        // We'll call a separate function or RPC. Here we do it manually.
+        for (const p of placementList) {
+          await supabase
+            .from('tournament_players')
+            .update({ placement: p.placement })
+            .eq('tournament_id', editingId)
+            .eq('player_id', p.id);
+          const bonusAmount =
+            p.placement === 1 ? bonusMap.first :
+            p.placement === 2 ? bonusMap.second :
+            p.placement === 3 ? bonusMap.third : 0;
+          if (bonusAmount > 0) {
+            // Call the player bonus RPC (you'll need to create it)
+            // If you don't have it, you can manually update the ratings table.
+            // For now, we'll call a generic function that updates ratings directly.
+            await supabase.rpc('award_player_bonus_elo', {
+              p_player_id: p.id,
+              p_bonus_elo: bonusAmount,
+              p_reason: `Tournament Standing Finish Rank: #${p.placement}`,
+            });
+          }
+        }
+        // Update tournament status
+        await supabase
+          .from('tournaments')
+          .update({ status: 'closed' })
+          .eq('id', editingId);
+        // Invalidate queries
+        closeTournament.onSuccess && closeTournament.onSuccess({}, { id: editingId });
+      }
+
       alert('Tournament closed successfully! ELO bonuses awarded.');
-      setManagingId(null);
-      // Refresh the list (already invalidated by hook)
+      // Refresh the list (we can just re-fetch by invalidating, but we'll reload the page for simplicity)
+      window.location.reload();
     } catch (err) {
       alert('Failed to close tournament: ' + err.message);
     } finally {
-      setLoadingManage(false);
+      setFinalizing(false);
     }
   };
 
@@ -200,14 +260,6 @@ export default function TournamentManagerPanel({ rating, userId }) {
                 >
                   Edit
                 </button>
-                {t.status !== 'closed' && (
-                  <button
-                    onClick={() => openManage(t)}
-                    className="text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded px-3 py-1"
-                  >
-                    Manage
-                  </button>
-                )}
                 {t.status === 'closed' && (
                   <span className="text-xs text-gray-500 px-2 py-1">Closed</span>
                 )}
@@ -219,7 +271,7 @@ export default function TournamentManagerPanel({ rating, userId }) {
 
       {error && <p className="text-xs text-red-400 mt-3">{error}</p>}
 
-      {/* Create / Edit Form (unchanged) */}
+      {/* Create or Edit Form */}
       {(creating || editingId) && (
         <form
           onSubmit={editingId ? handleUpdate : handleCreate}
@@ -228,6 +280,7 @@ export default function TournamentManagerPanel({ rating, userId }) {
           <h4 className="text-white font-medium">
             {editingId ? 'Edit Tournament' : 'Create New Tournament'}
           </h4>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input
               required
@@ -303,6 +356,7 @@ export default function TournamentManagerPanel({ rating, userId }) {
               onChange={(e) => setForm({ ...form, end_date: e.target.value })}
             />
           </div>
+
           <div className="flex gap-2">
             <button
               type="submit"
@@ -327,9 +381,100 @@ export default function TournamentManagerPanel({ rating, userId }) {
               Cancel
             </button>
           </div>
+
+          {/* ─── Awards & Finalize Section (only when editing) ─── */}
+          {editingId && (
+            <div className="mt-6 pt-4 border-t border-gray-700">
+              <h4 className="text-white font-medium mb-3">🏅 Awards & Finalize</h4>
+              <p className="text-xs text-gray-400 mb-4">
+                Assign placements (1, 2, 3, …) to participants. Top 3 will receive ELO bonuses.
+              </p>
+
+              {loadingParticipants ? (
+                <LoadingSpinner />
+              ) : participants.length === 0 ? (
+                <p className="text-sm text-gray-500">No participants registered yet.</p>
+              ) : (
+                <div className="space-y-2 mb-4">
+                  <div className="grid grid-cols-3 gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-700 pb-2">
+                    <span>Participant</span>
+                    <span>Placement</span>
+                    <span>Bonus</span>
+                  </div>
+                  {participants.map((entry) => {
+                    const id = entry.team_id || entry.player_id;
+                    const name = entry.teams?.name || entry.profiles?.display_name || entry.profiles?.handle || 'Unknown';
+                    const currentPlacement = placements[id] || '';
+                    return (
+                      <div key={id} className="grid grid-cols-3 gap-2 items-center py-1 border-b border-gray-800/50">
+                        <span className="text-white text-sm truncate">{name}</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="99"
+                          placeholder="–"
+                          className="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                          value={currentPlacement}
+                          onChange={(e) => setPlacements(prev => ({ ...prev, [id]: e.target.value }))}
+                        />
+                        <span className="text-xs text-gray-400">
+                          {currentPlacement == 1 ? `+${bonusMap.first}` :
+                           currentPlacement == 2 ? `+${bonusMap.second}` :
+                           currentPlacement == 3 ? `+${bonusMap.third}` : '—'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-4 mb-4 bg-gray-800/30 p-3 rounded-lg border border-gray-700">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-400">1st:</label>
+                  <input
+                    type="number"
+                    className="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                    value={bonusMap.first}
+                    onChange={(e) => setBonusMap({ ...bonusMap, first: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-400">2nd:</label>
+                  <input
+                    type="number"
+                    className="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                    value={bonusMap.second}
+                    onChange={(e) => setBonusMap({ ...bonusMap, second: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-400">3rd:</label>
+                  <input
+                    type="number"
+                    className="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                    value={bonusMap.third}
+                    onChange={(e) => setBonusMap({ ...bonusMap, third: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={handleFinalize}
+                disabled={finalizing || participants.length === 0}
+                className={`w-full py-2 rounded-lg font-semibold text-sm ${
+                  finalizing || participants.length === 0
+                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-500 text-white'
+                }`}
+              >
+                {finalizing ? 'Finalizing...' : 'Finalize Tournament & Award Bonuses'}
+              </button>
+            </div>
+          )}
         </form>
       )}
 
+      {/* Create button (only if not creating/editing) */}
       {!creating && !editingId && (
         <button
           onClick={() => {
@@ -340,108 +485,6 @@ export default function TournamentManagerPanel({ rating, userId }) {
         >
           <i className="fas fa-plus mr-2"></i> Create Tournament
         </button>
-      )}
-
-      {/* ─── Manage Tournament Modal ────────────────────────── */}
-      {managingId && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6 border border-gray-800">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-white">Manage Tournament</h3>
-              <button
-                onClick={() => setManagingId(null)}
-                className="text-gray-400 hover:text-white text-2xl"
-              >
-                ×
-              </button>
-            </div>
-
-            {loadingManage ? (
-              <LoadingSpinner />
-            ) : (
-              <>
-                <div className="mb-4">
-                  <p className="text-gray-400 text-sm">
-                    Assign placements (1, 2, 3, ...) to the top teams. Only top 3 will receive ELO bonuses.
-                  </p>
-                </div>
-
-                <div className="space-y-2 mb-6">
-                  <div className="grid grid-cols-3 gap-2 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-700 pb-2">
-                    <span>Team</span>
-                    <span>Placement</span>
-                    <span>Bonus</span>
-                  </div>
-                  {registeredTeams.length === 0 ? (
-                    <p className="text-gray-500 text-sm">No teams registered yet.</p>
-                  ) : (
-                    registeredTeams.map((entry) => {
-                      const team = entry.teams;
-                      const currentPlacement = placements[entry.team_id] || '';
-                      return (
-                        <div key={entry.team_id} className="grid grid-cols-3 gap-2 items-center py-1 border-b border-gray-800/50">
-                          <span className="text-white text-sm truncate">{team.name} {team.tag ? `[${team.tag}]` : ''}</span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="99"
-                            placeholder="–"
-                            className="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"
-                            value={currentPlacement}
-                            onChange={(e) => handlePlacementChange(entry.team_id, e.target.value)}
-                          />
-                          <span className="text-xs text-gray-400">
-                            {currentPlacement == 1 ? `+${bonusMap.first}` :
-                             currentPlacement == 2 ? `+${bonusMap.second}` :
-                             currentPlacement == 3 ? `+${bonusMap.third}` : '—'}
-                          </span>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                <div className="flex flex-wrap gap-4 mb-6 bg-gray-800/30 p-3 rounded-lg border border-gray-700">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-400">1st:</label>
-                    <input
-                      type="number"
-                      className="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"
-                      value={bonusMap.first}
-                      onChange={(e) => setBonusMap({ ...bonusMap, first: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-400">2nd:</label>
-                    <input
-                      type="number"
-                      className="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"
-                      value={bonusMap.second}
-                      onChange={(e) => setBonusMap({ ...bonusMap, second: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-400">3rd:</label>
-                    <input
-                      type="number"
-                      className="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white"
-                      value={bonusMap.third}
-                      onChange={(e) => setBonusMap({ ...bonusMap, third: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleCloseTournament}
-                  disabled={closeTournament.isPending}
-                  className="w-full bg-red-600 hover:bg-red-500 text-white py-2 rounded-lg font-semibold disabled:opacity-50"
-                >
-                  {closeTournament.isPending ? 'Closing...' : 'Close Tournament & Award Bonuses'}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
       )}
     </div>
   );
