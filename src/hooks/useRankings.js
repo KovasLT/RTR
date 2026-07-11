@@ -18,9 +18,11 @@ export const useTeamRankings = () => {
       .in('subject_id', teamIds);
       const ratingMap = new Map((ratings || []).map(r => [r.subject_id, r.rating]));
 
+      // ✅ Only count active members (left_at IS NULL)
       const { data: members } = await supabase
       .from('team_members')
-      .select('team_id');
+      .select('team_id')
+      .is('left_at', null);
       const memberCountMap = new Map();
       members?.forEach(m => {
         memberCountMap.set(m.team_id, (memberCountMap.get(m.team_id) || 0) + 1);
@@ -89,10 +91,12 @@ export const usePlayerRankings = () => {
       .in('subject_id', userIds);
       const ratingMap = new Map((ratings || []).map(r => [r.subject_id, r.rating]));
 
+      // ✅ Only active memberships (left_at IS NULL)
       const { data: memberships } = await supabase
       .from('team_members')
       .select('user_id, team:teams(id, name, tag)')
-      .in('user_id', userIds);
+      .in('user_id', userIds)
+      .is('left_at', null);
       const teamMap = new Map();
       memberships?.forEach(m => teamMap.set(m.user_id, m.team));
 
