@@ -19,8 +19,8 @@ export const APP_CONSTANTS = {
   BRAND: {
     NAME: 'COREner.eu', // Short brand name displayed in header logo
     FULL_NAME: 'Corener', // Full application name
-    TAGLINE: 'Community Esports Rankings', // Subtitle under brand name
-    SUBTITLE: 'Tracking community teams and players across competitive esports.', // Main hero description
+    TAGLINE: 'Community Hub for MOBA', // Subtitle under brand name
+    SUBTITLE: 'Connecting community teams, players, and tournaments across competitive MOBA.', // Main hero description
   },
 
   // ========================================
@@ -56,7 +56,7 @@ export const APP_CONSTANTS = {
   /** Authentication page text and labels */
   AUTH: {
     // Login Page (Discord is the only sign-in method)
-    LOGIN_TITLE: 'Welcome to RTR',
+    LOGIN_TITLE: 'Welcome to Corener',
     LOGIN_SUBTITLE: 'Sign in with Discord to continue',
     LOGIN_FOOTNOTE: 'We only use Discord to identify you. No password required.',
 
@@ -308,7 +308,7 @@ export const APP_CONSTANTS = {
   // ========================================
   ADMIN: {
     TITLE: 'Admin Dashboard',
-    SUBTITLE: 'Manage the RTR platform.',
+    SUBTITLE: 'Manage the Corener platform.',
     NOT_AUTHORIZED: 'You do not have access to this area.',
     TAB_OVERVIEW: 'Overview',
     TAB_USERS: 'Users & Roles',
@@ -556,7 +556,7 @@ export const APP_CONSTANTS = {
   // ========================================
   /** Footer text and legal information */
   FOOTER: {
-    COPYRIGHT: '© 2026 Corener.eu. Community Teams Ranking System. P.S> Website is still in testing version.', // Copyright notice
+    COPYRIGHT: '© 2026 Corener.eu. Community Hub for MOBA.', // Copyright notice
   },
 
   // ========================================
