@@ -8,10 +8,6 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 const C = APP_CONSTANTS.PROFILE_PAGE;
 
-/**
- * Public profile view. Serves `/profile/:id` and, when no id is given,
- * `/profile` for the signed-in user. Owners see edit / sign-out actions.
- */
 const ProfileView = () => {
   const { id } = useParams();
   const { user, roles, logout } = useAuth();
@@ -24,7 +20,6 @@ const ProfileView = () => {
   const { data: endorsements = [] } = useEndorsements(profileId);
   const { endorse, unendorse } = useEndorsementMutations(profileId);
 
-  // Visiting /profile while logged out → send to login.
   if (!profileId) return <Navigate to="/login" replace />;
   if (isLoading) return <LoadingSpinner />;
   if (!profile) {
@@ -33,7 +28,6 @@ const ProfileView = () => {
 
   const player = profile.player;
   const ratingFor = (type) => profile.ratings?.find((r) => r.subject_type === type);
-  // A scout viewing another player can add/remove them from their watchlist.
   const canScout = !isOwner && roles?.includes('scout') && profile.roles.includes('player');
   const isWatching = watchlist.some((w) => w.playerId === profileId);
 
@@ -59,6 +53,12 @@ const ProfileView = () => {
                 {profile.country_iso ? ` · ${profile.country_iso}` : ''}
               </p>
             )}
+            {/* Display referrer if exists */}
+            {profile.referrer && (
+              <p className="text-sm text-gray-400 mt-1">
+                {C.INVITED_BY} {profile.referrer.display_name}
+              </p>
+            )}
             {profile.bio && <p className="text-gray-300 mt-3 whitespace-pre-line">{profile.bio}</p>}
             <p className="text-xs text-gray-500 mt-3">
               {C.MEMBER_SINCE} {new Date(profile.created_at).toLocaleDateString()}
@@ -66,6 +66,7 @@ const ProfileView = () => {
           </div>
         </div>
 
+        {/* Owner actions */}
         {isOwner && (
           <div className="flex gap-3 mt-5 pt-5 border-t border-gray-700">
             <Link to="/profile/edit" className="rtr-btn-primary">
@@ -80,6 +81,7 @@ const ProfileView = () => {
           </div>
         )}
 
+        {/* Scout actions */}
         {canScout && (
           <div className="mt-5 pt-5 border-t border-gray-700">
             <button

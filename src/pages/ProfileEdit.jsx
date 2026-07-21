@@ -48,11 +48,51 @@ const ProfileEdit = () => {
     experienceYears: '',
     org: '',
     avatarUrl: '',
+    referrerId: null,
   });
+
+  // Referrer combobox state
+  const [referrerSearch, setReferrerSearch] = useState('');
+  const [referrerOptions, setReferrerOptions] = useState([]);
+  const [showReferrerDropdown, setShowReferrerDropdown] = useState(false);
+  const [isLoadingReferrers, setIsLoadingReferrers] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState('');
 
+  // ---- Inline debounced referrer search (no external hook) ----
+  useEffect(() => {
+    if (!referrerSearch || referrerSearch.length < 2) {
+      setReferrerOptions([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      const fetchUsers = async () => {
+        setIsLoadingReferrers(true);
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('id, display_name, handle')
+            .ilike('display_name', `%${referrerSearch}%`)
+            .neq('id', user.id)
+            .limit(10);
+          if (error) throw error;
+          setReferrerOptions(data || []);
+        } catch (err) {
+          console.error('Error fetching users for referral:', err);
+          setReferrerOptions([]);
+        } finally {
+          setIsLoadingReferrers(false);
+        }
+      };
+      fetchUsers();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [referrerSearch, user.id]);
+
+  // Load profile data into form
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
     let active = true;
@@ -91,6 +131,7 @@ const ProfileEdit = () => {
         experienceYears: c?.experience_years ? String(c.experience_years) : f.experienceYears,
         org: s?.org || f.org,
         avatarUrl: profile?.avatar_url || '',
+        referrerId: profile?.referrer_user_id || null,
       }));
     })();
 
@@ -99,7 +140,6 @@ const ProfileEdit = () => {
     };
   }, [isAuthenticated, user?.id, user?.username, profile, roles]);
 
-  // Update avatar preview when URL changes
   useEffect(() => {
     setAvatarPreview(form.avatarUrl || DEFAULT_AVATARS[0].url);
   }, [form.avatarUrl]);
@@ -119,6 +159,12 @@ const ProfileEdit = () => {
       heroPool: f.heroPool.includes(name) ? f.heroPool.filter((x) => x !== name) : [...f.heroPool, name],
     }));
 
+  const handleSelectReferrer = (userId, displayName) => {
+    set('referrerId', userId);
+    setReferrerSearch(displayName);
+    setShowReferrerDropdown(false);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -135,11 +181,13 @@ const ProfileEdit = () => {
           region_id: form.regionId ? Number(form.regionId) : null,
           country_iso: form.countryIso || null,
           avatar_url: form.avatarUrl || null,
+          referrer_user_id: form.referrerId || null,
           updated_at: now,
         })
         .eq('id', uid);
       if (pErr) throw pErr;
 
+      // Roles
       if (form.roles.length) {
         const rows = form.roles.map((role) => ({ user_id: uid, role }));
         const { error: rErr } = await supabase
@@ -148,6 +196,7 @@ const ProfileEdit = () => {
         if (rErr) throw rErr;
       }
 
+      // Player
       if (form.roles.includes('player')) {
         const { error: err } = await supabase.from('player_profiles').upsert({
           user_id: uid,
@@ -162,6 +211,8 @@ const ProfileEdit = () => {
         });
         if (err) throw err;
       }
+
+      // Coach
       if (form.roles.includes('coach')) {
         await supabase.from('coach_profiles').upsert({
           user_id: uid,
@@ -170,15 +221,21 @@ const ProfileEdit = () => {
           updated_at: now,
         });
       }
+
+      // Scout
       if (form.roles.includes('scout')) {
-        await supabase.from('scout_profiles').upsert({ user_id: uid, org: form.org || null, updated_at: now });
+        await supabase.from('scout_profiles').upsert({
+          user_id: uid,
+          org: form.org || null,
+          updated_at: now,
+        });
       }
+
+      // Team Manager
       if (form.roles.includes('team_manager')) {
         await supabase.from('team_manager_profiles').upsert({ user_id: uid, updated_at: now });
       }
 
-      // Edits invalidate the cached snapshot; clear it and force the profile
-      // query to refetch (which rewrites a fresh Xauth_user_profile).
       clearProfileCache();
       await qc.invalidateQueries({ queryKey: ['profile', uid] });
       await refreshProfile();
@@ -211,7 +268,6 @@ const ProfileEdit = () => {
 
         {/* Basic info with avatar */}
         <div className="rtr-card space-y-4">
-          {/* Avatar preview and selection */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Profile Picture</label>
             <div className="flex items-center gap-4 mb-3">
@@ -233,7 +289,6 @@ const ProfileEdit = () => {
             </div>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               <span className="text-xs text-gray-500">Choose:</span>
-              {/* Discord avatar as clickable thumbnail */}
               {profile?.avatar_url && (
                 <button
                   type="button"
@@ -244,7 +299,6 @@ const ProfileEdit = () => {
                   <img src={profile.avatar_url} alt="Discord avatar" className="w-full h-full object-cover" />
                 </button>
               )}
-              {/* Local default avatars */}
               {DEFAULT_AVATARS.map((item) => (
                 <button
                   key={item.url}
@@ -283,6 +337,49 @@ const ProfileEdit = () => {
             </div>
           </div>
         </div>
+
+        {/* Referrer field - only show if user hasn't set one yet */}
+        {!form.referrerId ? (
+          <div className="rtr-card space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.REFERRER_LABEL}</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  className={inputClass}
+                  placeholder={C.REFERRER_SEARCH_PLACEHOLDER}
+                  value={referrerSearch}
+                  onChange={(e) => {
+                    setReferrerSearch(e.target.value);
+                    setShowReferrerDropdown(true);
+                  }}
+                  onFocus={() => setShowReferrerDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowReferrerDropdown(false), 150)}
+                />
+                {showReferrerDropdown && referrerOptions.length > 0 && (
+                  <ul className="absolute z-10 w-full bg-gray-800 border border-gray-600 rounded-lg mt-1 max-h-48 overflow-y-auto">
+                    {referrerOptions.map((user) => (
+                      <li
+                        key={user.id}
+                        className="px-3 py-2 hover:bg-gray-700 cursor-pointer text-white"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleSelectReferrer(user.id, user.display_name || user.handle)}
+                      >
+                        {user.display_name || user.handle}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {isLoadingReferrers && (
+                  <div className="absolute right-3 top-3">
+                    <i className="fas fa-spinner fa-spin text-gray-400"></i>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Choose the person who invited you to Corener.</p>
+            </div>
+          </div>
+        ) : null}
 
         {/* Roles */}
         <div className="rtr-card space-y-3">
