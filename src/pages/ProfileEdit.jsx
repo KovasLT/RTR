@@ -7,14 +7,13 @@ import { clearProfileCache } from '../lib/profileCache.js';
 import { useRegions, useLanes, useRanks, useHeroes } from '../hooks/useReferenceData.js';
 import { APP_CONSTANTS } from '../app-constants';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { useDebounce } from '../hooks/useDebounce'; // or implement inline
 
 const ROLE_KEYS = ['player', 'coach', 'scout', 'team_manager'];
 
 const inputClass =
   'w-full bg-gray-800 border border-gray-600 hover:border-gray-500 rounded-lg px-3 py-2 text-white placeholder-gray-500 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500';
 
-// Local default avatar images
+// Local default avatar images (place these in your public/ folder)
 const DEFAULT_AVATARS = [
   { url: '/male.png', label: 'Male' },
   { url: '/female.png', label: 'Female' },
@@ -49,7 +48,7 @@ const ProfileEdit = () => {
     experienceYears: '',
     org: '',
     avatarUrl: '',
-    referrerId: null, // new field
+    referrerId: null,
   });
 
   // Referrer combobox state
@@ -62,34 +61,36 @@ const ProfileEdit = () => {
   const [error, setError] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState('');
 
-  // Fetch referrer options when search changes
-  const debouncedSearch = useDebounce(referrerSearch, 300); // if you have a hook, otherwise use a simple effect with timeout
-
+  // ---- Inline debounced referrer search (no external hook) ----
   useEffect(() => {
-    if (!debouncedSearch || debouncedSearch.length < 2) {
+    if (!referrerSearch || referrerSearch.length < 2) {
       setReferrerOptions([]);
       return;
     }
-    const fetchUsers = async () => {
-      setIsLoadingReferrers(true);
-      try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, display_name, handle')
-          .ilike('display_name', `%${debouncedSearch}%`)
-          .neq('id', user.id) // exclude self
-          .limit(10);
-        if (error) throw error;
-        setReferrerOptions(data || []);
-      } catch (err) {
-        console.error('Error fetching users for referral:', err);
-        setReferrerOptions([]);
-      } finally {
-        setIsLoadingReferrers(false);
-      }
-    };
-    fetchUsers();
-  }, [debouncedSearch, user.id]);
+    const timer = setTimeout(() => {
+      const fetchUsers = async () => {
+        setIsLoadingReferrers(true);
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('id, display_name, handle')
+            .ilike('display_name', `%${referrerSearch}%`)
+            .neq('id', user.id)
+            .limit(10);
+          if (error) throw error;
+          setReferrerOptions(data || []);
+        } catch (err) {
+          console.error('Error fetching users for referral:', err);
+          setReferrerOptions([]);
+        } finally {
+          setIsLoadingReferrers(false);
+        }
+      };
+      fetchUsers();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [referrerSearch, user.id]);
 
   // Load profile data into form
   useEffect(() => {
@@ -130,13 +131,8 @@ const ProfileEdit = () => {
         experienceYears: c?.experience_years ? String(c.experience_years) : f.experienceYears,
         org: s?.org || f.org,
         avatarUrl: profile?.avatar_url || '',
-        referrerId: profile?.referrer_user_id || null, // load existing referrer
+        referrerId: profile?.referrer_user_id || null,
       }));
-      // If referrer exists, set search display name (optional)
-      if (profile?.referrer_user_id) {
-        // We could fetch the referrer's display name, but we'll just show the ID or not.
-        // We'll handle display in the view.
-      }
     })();
 
     return () => {
@@ -152,13 +148,11 @@ const ProfileEdit = () => {
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
-
   const toggleRole = (r) =>
     setForm((f) => ({
       ...f,
       roles: f.roles.includes(r) ? f.roles.filter((x) => x !== r) : [...f.roles, r],
     }));
-
   const toggleHero = (name) =>
     setForm((f) => ({
       ...f,
@@ -167,7 +161,7 @@ const ProfileEdit = () => {
 
   const handleSelectReferrer = (userId, displayName) => {
     set('referrerId', userId);
-    setReferrerSearch(displayName); // show selected name
+    setReferrerSearch(displayName);
     setShowReferrerDropdown(false);
   };
 
@@ -187,15 +181,60 @@ const ProfileEdit = () => {
           region_id: form.regionId ? Number(form.regionId) : null,
           country_iso: form.countryIso || null,
           avatar_url: form.avatarUrl || null,
-          referrer_user_id: form.referrerId || null, // allow setting once; if null, keep null
+          referrer_user_id: form.referrerId || null,
           updated_at: now,
         })
         .eq('id', uid);
       if (pErr) throw pErr;
 
-      // ... rest of the profile updates (roles, player, coach, scout, etc.) unchanged ...
+      // Roles
+      if (form.roles.length) {
+        const rows = form.roles.map((role) => ({ user_id: uid, role }));
+        const { error: rErr } = await supabase
+          .from('user_roles')
+          .upsert(rows, { onConflict: 'user_id,role', ignoreDuplicates: true });
+        if (rErr) throw rErr;
+      }
 
-      // (Keep the existing role/player/coach/scout updates as they are)
+      // Player
+      if (form.roles.includes('player')) {
+        const { error: err } = await supabase.from('player_profiles').upsert({
+          user_id: uid,
+          lane_id: form.laneId ? Number(form.laneId) : null,
+          secondary_lane_id: form.secondaryLaneId ? Number(form.secondaryLaneId) : null,
+          rank_id: form.rankId ? Number(form.rankId) : null,
+          server: form.server || null,
+          availability: form.availability || null,
+          hero_pool: form.heroPool,
+          looking_for_team: form.lookingForTeam,
+          updated_at: now,
+        });
+        if (err) throw err;
+      }
+
+      // Coach
+      if (form.roles.includes('coach')) {
+        await supabase.from('coach_profiles').upsert({
+          user_id: uid,
+          specialties: form.specialties || null,
+          experience_years: form.experienceYears ? Number(form.experienceYears) : null,
+          updated_at: now,
+        });
+      }
+
+      // Scout
+      if (form.roles.includes('scout')) {
+        await supabase.from('scout_profiles').upsert({
+          user_id: uid,
+          org: form.org || null,
+          updated_at: now,
+        });
+      }
+
+      // Team Manager
+      if (form.roles.includes('team_manager')) {
+        await supabase.from('team_manager_profiles').upsert({ user_id: uid, updated_at: now });
+      }
 
       clearProfileCache();
       await qc.invalidateQueries({ queryKey: ['profile', uid] });
@@ -212,18 +251,94 @@ const ProfileEdit = () => {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
-      {/* ... header ... */}
       <div className="text-center">
         <h1 className="text-3xl font-bold text-white mb-2">{isEditing ? C.EDIT_TITLE : C.TITLE}</h1>
         <p className="text-gray-400">{isEditing ? C.EDIT_SUBTITLE : C.SUBTITLE}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* ... error display ... */}
+        {error && (
+          <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4">
+            <div className="flex items-center gap-2">
+              <i className="fas fa-exclamation-triangle text-red-400"></i>
+              <span className="text-red-400 text-sm">{error}</span>
+            </div>
+          </div>
+        )}
 
-        {/* Basic info with avatar - unchanged */}
+        {/* Basic info with avatar */}
+        <div className="rtr-card space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Profile Picture</label>
+            <div className="flex items-center gap-4 mb-3">
+              <img
+                src={avatarPreview}
+                alt="Avatar preview"
+                className="w-16 h-16 rounded-full object-cover border border-gray-700"
+                onError={(e) => { e.target.src = DEFAULT_AVATARS[0].url; }}
+              />
+              <div className="flex-1">
+                <input
+                  type="text"
+                  className={inputClass}
+                  placeholder="Custom image URL"
+                  value={form.avatarUrl}
+                  onChange={(e) => set('avatarUrl', e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className="text-xs text-gray-500">Choose:</span>
+              {profile?.avatar_url && (
+                <button
+                  type="button"
+                  onClick={() => set('avatarUrl', profile.avatar_url)}
+                  className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-600 hover:border-indigo-500 transition-colors"
+                  title="My Discord avatar"
+                >
+                  <img src={profile.avatar_url} alt="Discord avatar" className="w-full h-full object-cover" />
+                </button>
+              )}
+              {DEFAULT_AVATARS.map((item) => (
+                <button
+                  key={item.url}
+                  type="button"
+                  onClick={() => set('avatarUrl', item.url)}
+                  className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-600 hover:border-indigo-500 transition-colors"
+                  title={item.label}
+                >
+                  <img src={item.url} alt={item.label} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
 
-        {/* Referrer field - show only if user hasn't already set a referrer */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">{C.DISPLAY_NAME_LABEL}</label>
+            <input className={inputClass} value={form.displayName} onChange={(e) => set('displayName', e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">{C.BIO_LABEL}</label>
+            <textarea className={inputClass} rows={3} placeholder={C.BIO_PLACEHOLDER} value={form.bio} onChange={(e) => set('bio', e.target.value)} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.REGION_LABEL}</label>
+              <select className={inputClass} value={form.regionId} onChange={(e) => set('regionId', e.target.value)}>
+                <option value="">{C.SELECT_PLACEHOLDER}</option>
+                {regions.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.COUNTRY_LABEL}</label>
+              <input className={inputClass} maxLength={2} value={form.countryIso} onChange={(e) => set('countryIso', e.target.value.toUpperCase())} />
+            </div>
+          </div>
+        </div>
+
+        {/* Referrer field - only show if user hasn't set one yet */}
         {!form.referrerId ? (
           <div className="rtr-card space-y-4">
             <div>
@@ -240,7 +355,6 @@ const ProfileEdit = () => {
                   }}
                   onFocus={() => setShowReferrerDropdown(true)}
                   onBlur={() => setTimeout(() => setShowReferrerDropdown(false), 150)}
-                  disabled={!!form.referrerId}
                 />
                 {showReferrerDropdown && referrerOptions.length > 0 && (
                   <ul className="absolute z-10 w-full bg-gray-800 border border-gray-600 rounded-lg mt-1 max-h-48 overflow-y-auto">
@@ -248,7 +362,7 @@ const ProfileEdit = () => {
                       <li
                         key={user.id}
                         className="px-3 py-2 hover:bg-gray-700 cursor-pointer text-white"
-                        onMouseDown={(e) => e.preventDefault()} // prevent blur before click
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => handleSelectReferrer(user.id, user.display_name || user.handle)}
                       >
                         {user.display_name || user.handle}
@@ -265,17 +379,134 @@ const ProfileEdit = () => {
               <p className="text-xs text-gray-500 mt-1">Choose the person who invited you to Corener.</p>
             </div>
           </div>
-        ) : (
-          // If they already have a referrer, show it as read-only (but we'll display it in the view)
-          // We can optionally show "Invited by: [name]" here, but we'll rely on the profile view.
-          // We'll just skip showing any field.
-          null
+        ) : null}
+
+        {/* Roles */}
+        <div className="rtr-card space-y-3">
+          <div>
+            <h3 className="text-lg font-semibold text-white">{C.ROLES_LABEL}</h3>
+            <p className="text-sm text-gray-400">{C.ROLES_HINT}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {ROLE_KEYS.map((r) => {
+              const active = form.roles.includes(r);
+              return (
+                <button
+                  type="button"
+                  key={r}
+                  onClick={() => toggleRole(r)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    active
+                      ? 'bg-indigo-600 border-indigo-500 text-white'
+                      : 'bg-gray-800 border-gray-600 text-gray-300 hover:border-gray-500'
+                  }`}
+                >
+                  <i className={`fas ${APP_CONSTANTS.ROLE_ICONS[r]} mr-2`}></i>
+                  {APP_CONSTANTS.ROLES[r]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Player details */}
+        {form.roles.includes('player') && (
+          <div className="rtr-card space-y-4">
+            <h3 className="text-lg font-semibold text-white">{C.PLAYER_SECTION}</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">{C.LANE_LABEL}</label>
+                <select className={inputClass} value={form.laneId} onChange={(e) => set('laneId', e.target.value)}>
+                  <option value="">{C.SELECT_PLACEHOLDER}</option>
+                  {lanes.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Secondary Lane</label>
+                <select className={inputClass} value={form.secondaryLaneId} onChange={(e) => set('secondaryLaneId', e.target.value)}>
+                  <option value="">None</option>
+                  {lanes.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">{C.RANK_LABEL}</label>
+                <select className={inputClass} value={form.rankId} onChange={(e) => set('rankId', e.target.value)}>
+                  <option value="">{C.SELECT_PLACEHOLDER}</option>
+                  {ranks.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">{C.SERVER_LABEL}</label>
+                <input className={inputClass} value={form.server} onChange={(e) => set('server', e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.AVAILABILITY_LABEL}</label>
+              <input className={inputClass} placeholder={C.AVAILABILITY_PLACEHOLDER} value={form.availability} onChange={(e) => set('availability', e.target.value)} />
+            </div>
+            {heroes.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">{C.HERO_POOL_LABEL}</label>
+                <p className="text-xs text-gray-500 mb-2">{C.HERO_POOL_HINT}</p>
+                <div className="flex flex-wrap gap-2">
+                  {heroes.map((h) => {
+                    const on = form.heroPool.includes(h.name);
+                    return (
+                      <button
+                        type="button"
+                        key={h.id}
+                        onClick={() => toggleHero(h.name)}
+                        className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                          on ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-300 hover:border-gray-500'
+                        }`}
+                      >
+                        {h.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <label className="flex items-center gap-2 text-sm text-gray-300">
+              <input type="checkbox" checked={form.lookingForTeam} onChange={(e) => set('lookingForTeam', e.target.checked)} />
+              {C.LFT_LABEL}
+            </label>
+          </div>
         )}
 
-        {/* Roles - unchanged */}
-        {/* Player details - unchanged */}
-        {/* Coach details - unchanged */}
-        {/* Scout details - unchanged */}
+        {/* Coach details */}
+        {form.roles.includes('coach') && (
+          <div className="rtr-card space-y-4">
+            <h3 className="text-lg font-semibold text-white">{C.COACH_SECTION}</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.SPECIALTIES_LABEL}</label>
+              <input className={inputClass} value={form.specialties} onChange={(e) => set('specialties', e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.EXPERIENCE_LABEL}</label>
+              <input className={inputClass} type="number" min="0" value={form.experienceYears} onChange={(e) => set('experienceYears', e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        {/* Scout / org details */}
+        {form.roles.includes('scout') && (
+          <div className="rtr-card space-y-4">
+            <h3 className="text-lg font-semibold text-white">{C.SCOUT_SECTION}</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.ORG_LABEL}</label>
+              <input className={inputClass} value={form.org} onChange={(e) => set('org', e.target.value)} />
+            </div>
+          </div>
+        )}
 
         <button type="submit" disabled={saving} className="w-full rtr-btn-primary justify-center disabled:opacity-50 disabled:cursor-not-allowed">
           {saving ? C.SAVING : C.SAVE}
