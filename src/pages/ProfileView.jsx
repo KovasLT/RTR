@@ -61,7 +61,7 @@ const ProfileEdit = () => {
   const [error, setError] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState('');
 
-  // ---- Inline debounced referrer search ----
+  // ---- Inline debounced referrer search (no external hook) ----
   useEffect(() => {
     if (!referrerSearch || referrerSearch.length < 2) {
       setReferrerOptions([]);
