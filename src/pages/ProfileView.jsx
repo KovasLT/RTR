@@ -1,194 +1,519 @@
-import { Link, useParams, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../hooks/useAuth.jsx';
-import { useProfile } from '../hooks/useProfiles.js';
-import { useMyWatchlist, useScoutMutations } from '../hooks/useScouting.js';
-import { useEndorsements, useEndorsementMutations } from '../hooks/useEndorsements.js';
+import { supabase } from '../lib/supabase.js';
+import { clearProfileCache } from '../lib/profileCache.js';
+import { useRegions, useLanes, useRanks, useHeroes } from '../hooks/useReferenceData.js';
 import { APP_CONSTANTS } from '../app-constants';
 import LoadingSpinner from '../components/LoadingSpinner';
 
-const C = APP_CONSTANTS.PROFILE_PAGE;
+const ROLE_KEYS = ['player', 'coach', 'scout', 'team_manager'];
 
-const ProfileView = () => {
-  const { id } = useParams();
-  const { user, roles, logout } = useAuth();
-  const profileId = id || user?.id;
-  const isOwner = Boolean(user?.id) && profileId === user?.id;
+const inputClass =
+  'w-full bg-gray-800 border border-gray-600 hover:border-gray-500 rounded-lg px-3 py-2 text-white placeholder-gray-500 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500';
 
-  const { data: profile, isLoading } = useProfile(profileId);
-  const { data: watchlist = [] } = useMyWatchlist(user?.id);
-  const { watch, unwatch } = useScoutMutations();
-  const { data: endorsements = [] } = useEndorsements(profileId);
-  const { endorse, unendorse } = useEndorsementMutations(profileId);
+// Local default avatar images (place these in your public/ folder)
+const DEFAULT_AVATARS = [
+  { url: '/male.png', label: 'Male' },
+  { url: '/female.png', label: 'Female' },
+];
 
-  if (!profileId) return <Navigate to="/login" replace />;
+const ProfileEdit = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, profile, roles, isAuthenticated, isLoading, refreshProfile } = useAuth();
+  const qc = useQueryClient();
+  const { data: regions = [] } = useRegions();
+  const { data: lanes = [] } = useLanes();
+  const { data: ranks = [] } = useRanks();
+  const { data: heroes = [] } = useHeroes();
+
+  const isEditing = location.pathname === '/profile/edit';
+
+  const [form, setForm] = useState({
+    displayName: '',
+    bio: '',
+    regionId: '',
+    countryIso: '',
+    roles: [],
+    laneId: '',
+    secondaryLaneId: '',
+    rankId: '',
+    server: '',
+    availability: '',
+    heroPool: [],
+    lookingForTeam: false,
+    specialties: '',
+    experienceYears: '',
+    org: '',
+    avatarUrl: '',
+    referrerId: null,
+  });
+
+  // Referrer combobox state
+  const [referrerSearch, setReferrerSearch] = useState('');
+  const [referrerOptions, setReferrerOptions] = useState([]);
+  const [showReferrerDropdown, setShowReferrerDropdown] = useState(false);
+  const [isLoadingReferrers, setIsLoadingReferrers] = useState(false);
+
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState('');
+
+  // ---- Inline debounced referrer search ----
+  useEffect(() => {
+    if (!referrerSearch || referrerSearch.length < 2) {
+      setReferrerOptions([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      const fetchUsers = async () => {
+        setIsLoadingReferrers(true);
+        try {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('id, display_name, handle')
+            .ilike('display_name', `%${referrerSearch}%`)
+            .neq('id', user.id)
+            .limit(10);
+          if (error) throw error;
+          setReferrerOptions(data || []);
+        } catch (err) {
+          console.error('Error fetching users for referral:', err);
+          setReferrerOptions([]);
+        } finally {
+          setIsLoadingReferrers(false);
+        }
+      };
+      fetchUsers();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [referrerSearch, user.id]);
+
+  // Load profile data into form
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
+    let active = true;
+
+    (async () => {
+      let p = null;
+      let c = null;
+      let s = null;
+      if (supabase) {
+        const results = await Promise.all([
+          supabase.from('player_profiles').select('*').eq('user_id', user.id).maybeSingle(),
+          supabase.from('coach_profiles').select('*').eq('user_id', user.id).maybeSingle(),
+          supabase.from('scout_profiles').select('*').eq('user_id', user.id).maybeSingle(),
+        ]);
+        p = results[0].data;
+        c = results[1].data;
+        s = results[2].data;
+      }
+      if (!active) return;
+
+      setForm((f) => ({
+        ...f,
+        displayName: profile?.display_name || user?.username || '',
+        bio: profile?.bio || '',
+        regionId: profile?.region_id ? String(profile.region_id) : '',
+        countryIso: profile?.country_iso || '',
+        roles: roles || [],
+        laneId: p?.lane_id ? String(p.lane_id) : f.laneId,
+        secondaryLaneId: p?.secondary_lane_id ? String(p.secondary_lane_id) : f.secondaryLaneId,
+        rankId: p?.rank_id ? String(p.rank_id) : f.rankId,
+        server: p?.server || f.server,
+        availability: p?.availability || f.availability,
+        heroPool: Array.isArray(p?.hero_pool) ? p.hero_pool : f.heroPool,
+        lookingForTeam: p ? !!p.looking_for_team : f.lookingForTeam,
+        specialties: c?.specialties || f.specialties,
+        experienceYears: c?.experience_years ? String(c.experience_years) : f.experienceYears,
+        org: s?.org || f.org,
+        avatarUrl: profile?.avatar_url || '',
+        referrerId: profile?.referrer_user_id || null,
+      }));
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, user?.id, user?.username, profile, roles]);
+
+  useEffect(() => {
+    setAvatarPreview(form.avatarUrl || DEFAULT_AVATARS[0].url);
+  }, [form.avatarUrl]);
+
   if (isLoading) return <LoadingSpinner />;
-  if (!profile) {
-    return <div className="text-center text-gray-400 py-16">{C.NOT_FOUND}</div>;
-  }
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  const player = profile.player;
-  const ratingFor = (type) => profile.ratings?.find((r) => r.subject_type === type);
-  const canScout = !isOwner && roles?.includes('scout') && profile.roles.includes('player');
-  const isWatching = watchlist.some((w) => w.playerId === profileId);
+  const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+  const toggleRole = (r) =>
+    setForm((f) => ({
+      ...f,
+      roles: f.roles.includes(r) ? f.roles.filter((x) => x !== r) : [...f.roles, r],
+    }));
+  const toggleHero = (name) =>
+    setForm((f) => ({
+      ...f,
+      heroPool: f.heroPool.includes(name) ? f.heroPool.filter((x) => x !== name) : [...f.heroPool, name],
+    }));
+
+  const handleSelectReferrer = (userId, displayName) => {
+    set('referrerId', userId);
+    setReferrerSearch(displayName);
+    setShowReferrerDropdown(false);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const uid = user.id;
+      const now = new Date().toISOString();
+
+      const { error: pErr } = await supabase
+        .from('profiles')
+        .update({
+          display_name: form.displayName || null,
+          bio: form.bio || null,
+          region_id: form.regionId ? Number(form.regionId) : null,
+          country_iso: form.countryIso || null,
+          avatar_url: form.avatarUrl || null,
+          referrer_user_id: form.referrerId || null,
+          updated_at: now,
+        })
+        .eq('id', uid);
+      if (pErr) throw pErr;
+
+      // Roles
+      if (form.roles.length) {
+        const rows = form.roles.map((role) => ({ user_id: uid, role }));
+        const { error: rErr } = await supabase
+          .from('user_roles')
+          .upsert(rows, { onConflict: 'user_id,role', ignoreDuplicates: true });
+        if (rErr) throw rErr;
+      }
+
+      // Player
+      if (form.roles.includes('player')) {
+        const { error: err } = await supabase.from('player_profiles').upsert({
+          user_id: uid,
+          lane_id: form.laneId ? Number(form.laneId) : null,
+          secondary_lane_id: form.secondaryLaneId ? Number(form.secondaryLaneId) : null,
+          rank_id: form.rankId ? Number(form.rankId) : null,
+          server: form.server || null,
+          availability: form.availability || null,
+          hero_pool: form.heroPool,
+          looking_for_team: form.lookingForTeam,
+          updated_at: now,
+        });
+        if (err) throw err;
+      }
+
+      // Coach
+      if (form.roles.includes('coach')) {
+        await supabase.from('coach_profiles').upsert({
+          user_id: uid,
+          specialties: form.specialties || null,
+          experience_years: form.experienceYears ? Number(form.experienceYears) : null,
+          updated_at: now,
+        });
+      }
+
+      // Scout
+      if (form.roles.includes('scout')) {
+        await supabase.from('scout_profiles').upsert({
+          user_id: uid,
+          org: form.org || null,
+          updated_at: now,
+        });
+      }
+
+      // Team Manager
+      if (form.roles.includes('team_manager')) {
+        await supabase.from('team_manager_profiles').upsert({ user_id: uid, updated_at: now });
+      }
+
+      clearProfileCache();
+      await qc.invalidateQueries({ queryKey: ['profile', uid] });
+      await refreshProfile();
+      navigate('/profile');
+    } catch (err) {
+      setError(err.message || 'Failed to save profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const C = APP_CONSTANTS.ONBOARDING;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
-      {/* Identity card */}
-      <div className="rtr-card">
-        <div className="flex items-start gap-4">
-          <div className="bg-gray-700 rounded-full w-16 h-16 flex items-center justify-center overflow-hidden shrink-0">
-            {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
-            ) : (
-              <i className="fas fa-user text-2xl text-gray-300"></i>
-            )}
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-white mb-2">{isEditing ? C.EDIT_TITLE : C.TITLE}</h1>
+        <p className="text-gray-400">{isEditing ? C.EDIT_SUBTITLE : C.SUBTITLE}</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4">
+            <div className="flex items-center gap-2">
+              <i className="fas fa-exclamation-triangle text-red-400"></i>
+              <span className="text-red-400 text-sm">{error}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Basic info with avatar */}
+        <div className="rtr-card space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Profile Picture</label>
+            <div className="flex items-center gap-4 mb-3">
+              <img
+                src={avatarPreview}
+                alt="Avatar preview"
+                className="w-16 h-16 rounded-full object-cover border border-gray-700"
+                onError={(e) => { e.target.src = DEFAULT_AVATARS[0].url; }}
+              />
+              <div className="flex-1">
+                <input
+                  type="text"
+                  className={inputClass}
+                  placeholder="Custom image URL"
+                  value={form.avatarUrl}
+                  onChange={(e) => set('avatarUrl', e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className="text-xs text-gray-500">Choose:</span>
+              {profile?.avatar_url && (
+                <button
+                  type="button"
+                  onClick={() => set('avatarUrl', profile.avatar_url)}
+                  className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-600 hover:border-indigo-500 transition-colors"
+                  title="My Discord avatar"
+                >
+                  <img src={profile.avatar_url} alt="Discord avatar" className="w-full h-full object-cover" />
+                </button>
+              )}
+              {DEFAULT_AVATARS.map((item) => (
+                <button
+                  key={item.url}
+                  type="button"
+                  onClick={() => set('avatarUrl', item.url)}
+                  className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-600 hover:border-indigo-500 transition-colors"
+                  title={item.label}
+                >
+                  <img src={item.url} alt={item.label} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="flex-grow min-w-0">
-            <h1 className="text-2xl font-bold text-white">{profile.display_name || profile.handle}</h1>
-            {profile.region?.name && (
-              <p className="text-gray-400 text-sm">
-                <i className="fas fa-globe mr-1"></i>
-                {profile.region.name}
-                {profile.country_iso ? ` · ${profile.country_iso}` : ''}
-              </p>
-            )}
-            {/* Display referrer if exists */}
-            {profile.referrer && (
-              <p className="text-sm text-gray-400 mt-1">
-                {C.INVITED_BY} {profile.referrer.display_name}
-              </p>
-            )}
-            {profile.bio && <p className="text-gray-300 mt-3 whitespace-pre-line">{profile.bio}</p>}
-            <p className="text-xs text-gray-500 mt-3">
-              {C.MEMBER_SINCE} {new Date(profile.created_at).toLocaleDateString()}
-            </p>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">{C.DISPLAY_NAME_LABEL}</label>
+            <input className={inputClass} value={form.displayName} onChange={(e) => set('displayName', e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">{C.BIO_LABEL}</label>
+            <textarea className={inputClass} rows={3} placeholder={C.BIO_PLACEHOLDER} value={form.bio} onChange={(e) => set('bio', e.target.value)} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.REGION_LABEL}</label>
+              <select className={inputClass} value={form.regionId} onChange={(e) => set('regionId', e.target.value)}>
+                <option value="">{C.SELECT_PLACEHOLDER}</option>
+                {regions.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.COUNTRY_LABEL}</label>
+              <input className={inputClass} maxLength={2} value={form.countryIso} onChange={(e) => set('countryIso', e.target.value.toUpperCase())} />
+            </div>
           </div>
         </div>
 
-        {/* Owner actions */}
-        {isOwner && (
-          <div className="flex gap-3 mt-5 pt-5 border-t border-gray-700">
-            <Link to="/profile/edit" className="rtr-btn-primary">
-              <i className="fas fa-pen"></i> {C.EDIT}
-            </Link>
-            <button
-              onClick={logout}
-              className="bg-red-900/20 hover:bg-red-900/30 border border-red-800/50 text-red-400 font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2"
-            >
-              <i className="fas fa-sign-out-alt"></i> {C.SIGN_OUT}
-            </button>
-          </div>
-        )}
-
-        {/* Scout actions */}
-        {canScout && (
-          <div className="mt-5 pt-5 border-t border-gray-700">
-            <button
-              onClick={() => (isWatching ? unwatch : watch).mutate({ scoutId: user.id, playerId: profileId })}
-              className={`font-medium py-2 px-4 rounded-lg transition-colors flex items-center gap-2 ${
-                isWatching
-                  ? 'bg-indigo-600/20 border border-indigo-600/50 text-indigo-300 hover:bg-indigo-600/30'
-                  : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-              }`}
-            >
-              <i className="fas fa-binoculars"></i> {isWatching ? C.WATCHING : C.WATCH}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Roles + ratings */}
-      <div className="rtr-card">
-        <h3 className="text-lg font-semibold text-white mb-4">{C.ROLES}</h3>
-        {profile.roles.length === 0 ? (
-          <p className="text-gray-400 text-sm">{C.NO_ROLES}</p>
-        ) : (
-          <div className="space-y-2">
-            {profile.roles.map((role) => {
-              const rating = ratingFor(role);
-              const count = endorsements.filter((e) => e.subject_type === role).length;
-              const mine = Boolean(user?.id) && endorsements.some((e) => e.subject_type === role && e.endorser_id === user.id);
-              return (
-                <div key={role} className="flex flex-wrap items-center justify-between gap-3 bg-gray-800/60 rounded-lg px-4 py-3">
-                  <span className="text-white font-medium">
-                    <i className={`fas ${APP_CONSTANTS.ROLE_ICONS[role]} mr-2 text-indigo-300`}></i>
-                    {APP_CONSTANTS.ROLES[role]}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    {count > 0 && (
-                      <span className="text-xs text-gray-400">
-                        <i className="fas fa-thumbs-up text-indigo-300 mr-1"></i>{count}
-                      </span>
-                    )}
-                    {rating && <span className="text-indigo-300 font-mono font-bold">{rating.rating}</span>}
-                    {Boolean(user?.id) && !isOwner && (
-                      <button
-                        onClick={() => (mine ? unendorse : endorse).mutate({ subjectType: role })}
-                        className={`text-xs font-semibold rounded px-3 py-1 border transition-colors ${
-                          mine
-                            ? 'bg-indigo-600/20 border-indigo-600/50 text-indigo-300 hover:bg-indigo-600/30'
-                            : 'bg-gray-800 border-gray-600 text-gray-300 hover:border-gray-500'
-                        }`}
+        {/* Referrer field - only show if user hasn't set one yet */}
+        {!form.referrerId ? (
+          <div className="rtr-card space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.REFERRER_LABEL}</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  className={inputClass}
+                  placeholder={C.REFERRER_SEARCH_PLACEHOLDER}
+                  value={referrerSearch}
+                  onChange={(e) => {
+                    setReferrerSearch(e.target.value);
+                    setShowReferrerDropdown(true);
+                  }}
+                  onFocus={() => setShowReferrerDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowReferrerDropdown(false), 150)}
+                />
+                {showReferrerDropdown && referrerOptions.length > 0 && (
+                  <ul className="absolute z-10 w-full bg-gray-800 border border-gray-600 rounded-lg mt-1 max-h-48 overflow-y-auto">
+                    {referrerOptions.map((user) => (
+                      <li
+                        key={user.id}
+                        className="px-3 py-2 hover:bg-gray-700 cursor-pointer text-white"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleSelectReferrer(user.id, user.display_name || user.handle)}
                       >
-                        <i className="fas fa-thumbs-up mr-1"></i>{mine ? C.ENDORSED : C.ENDORSE}
-                      </button>
-                    )}
+                        {user.display_name || user.handle}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {isLoadingReferrers && (
+                  <div className="absolute right-3 top-3">
+                    <i className="fas fa-spinner fa-spin text-gray-400"></i>
                   </div>
-                </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Choose the person who invited you to Corener.</p>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Roles */}
+        <div className="rtr-card space-y-3">
+          <div>
+            <h3 className="text-lg font-semibold text-white">{C.ROLES_LABEL}</h3>
+            <p className="text-sm text-gray-400">{C.ROLES_HINT}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {ROLE_KEYS.map((r) => {
+              const active = form.roles.includes(r);
+              return (
+                <button
+                  type="button"
+                  key={r}
+                  onClick={() => toggleRole(r)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                    active
+                      ? 'bg-indigo-600 border-indigo-500 text-white'
+                      : 'bg-gray-800 border-gray-600 text-gray-300 hover:border-gray-500'
+                  }`}
+                >
+                  <i className={`fas ${APP_CONSTANTS.ROLE_ICONS[r]} mr-2`}></i>
+                  {APP_CONSTANTS.ROLES[r]}
+                </button>
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Player details */}
-      {player && (
-        <div className="rtr-card">
-          <h3 className="text-lg font-semibold text-white mb-4">{APP_CONSTANTS.ROLES.player}</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-            <div>
-              <div className="text-gray-500">{C.LANE}</div>
-              <div className="text-white">{player.lane?.name || '—'}</div>
-            </div>
-            <div>
-              <div className="text-gray-500">{C.RANK}</div>
-              <div className="text-white">{player.rank?.name || '—'}</div>
-            </div>
-            <div>
-              <div className="text-gray-500">{C.SERVER}</div>
-              <div className="text-white">{player.server || '—'}</div>
-            </div>
-            {player.availability && (
+        {/* Player details */}
+        {form.roles.includes('player') && (
+          <div className="rtr-card space-y-4">
+            <h3 className="text-lg font-semibold text-white">{C.PLAYER_SECTION}</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <div className="text-gray-500">{C.AVAILABILITY}</div>
-                <div className="text-white">{player.availability}</div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">{C.LANE_LABEL}</label>
+                <select className={inputClass} value={form.laneId} onChange={(e) => set('laneId', e.target.value)}>
+                  <option value="">{C.SELECT_PLACEHOLDER}</option>
+                  {lanes.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Secondary Lane</label>
+                <select className={inputClass} value={form.secondaryLaneId} onChange={(e) => set('secondaryLaneId', e.target.value)}>
+                  <option value="">None</option>
+                  {lanes.map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">{C.RANK_LABEL}</label>
+                <select className={inputClass} value={form.rankId} onChange={(e) => set('rankId', e.target.value)}>
+                  <option value="">{C.SELECT_PLACEHOLDER}</option>
+                  {ranks.map((r) => (
+                    <option key={r.id} value={r.id}>{r.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">{C.SERVER_LABEL}</label>
+                <input className={inputClass} value={form.server} onChange={(e) => set('server', e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.AVAILABILITY_LABEL}</label>
+              <input className={inputClass} placeholder={C.AVAILABILITY_PLACEHOLDER} value={form.availability} onChange={(e) => set('availability', e.target.value)} />
+            </div>
+            {heroes.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">{C.HERO_POOL_LABEL}</label>
+                <p className="text-xs text-gray-500 mb-2">{C.HERO_POOL_HINT}</p>
+                <div className="flex flex-wrap gap-2">
+                  {heroes.map((h) => {
+                    const on = form.heroPool.includes(h.name);
+                    return (
+                      <button
+                        type="button"
+                        key={h.id}
+                        onClick={() => toggleHero(h.name)}
+                        className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                          on ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-gray-800 border-gray-600 text-gray-300 hover:border-gray-500'
+                        }`}
+                      >
+                        {h.name}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
+            <label className="flex items-center gap-2 text-sm text-gray-300">
+              <input type="checkbox" checked={form.lookingForTeam} onChange={(e) => set('lookingForTeam', e.target.checked)} />
+              {C.LFT_LABEL}
+            </label>
           </div>
-          {Array.isArray(player.hero_pool) && player.hero_pool.length > 0 && (
-            <div className="mt-4">
-              <div className="text-gray-500 text-sm mb-1">{C.HERO_POOL}</div>
-              <div className="flex flex-wrap gap-1.5">
-                {player.hero_pool.map((h) => (
-                  <span key={String(h)} className="text-xs bg-gray-800 border border-gray-700 text-gray-300 rounded px-2 py-0.5">{String(h)}</span>
-                ))}
-              </div>
-            </div>
-          )}
-          {player.looking_for_team && (
-            <div className="mt-4 inline-flex items-center gap-2 text-sm text-green-400 bg-green-900/20 border border-green-800/50 rounded-lg px-3 py-1">
-              <i className="fas fa-search"></i> {APP_CONSTANTS.DIRECTORY.LFT_BADGE}
-            </div>
-          )}
-        </div>
-      )}
+        )}
 
-      <p className="text-center text-xs text-gray-500">
-        <i className="fab fa-discord text-[#5865f2] mr-1"></i> {C.DISCORD_NOTE}
-      </p>
+        {/* Coach details */}
+        {form.roles.includes('coach') && (
+          <div className="rtr-card space-y-4">
+            <h3 className="text-lg font-semibold text-white">{C.COACH_SECTION}</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.SPECIALTIES_LABEL}</label>
+              <input className={inputClass} value={form.specialties} onChange={(e) => set('specialties', e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.EXPERIENCE_LABEL}</label>
+              <input className={inputClass} type="number" min="0" value={form.experienceYears} onChange={(e) => set('experienceYears', e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        {/* Scout / org details */}
+        {form.roles.includes('scout') && (
+          <div className="rtr-card space-y-4">
+            <h3 className="text-lg font-semibold text-white">{C.SCOUT_SECTION}</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{C.ORG_LABEL}</label>
+              <input className={inputClass} value={form.org} onChange={(e) => set('org', e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        <button type="submit" disabled={saving} className="w-full rtr-btn-primary justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+          {saving ? C.SAVING : C.SAVE}
+        </button>
+      </form>
     </div>
   );
 };
 
-export default ProfileView;
+export default ProfileEdit;
