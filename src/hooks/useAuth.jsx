@@ -8,18 +8,8 @@ import {
 import { supabase, isSupabaseConfigured } from '../lib/supabase.js';
 import { clearProfileCache } from '../lib/profileCache.js';
 
-/**
- * Authentication Context (Supabase + Discord)
- *
- * Auth is handled by Supabase's Discord provider. This context keeps the same
- * surface the app already used (`user`, `isAuthenticated`, `loginWithDiscord`,
- * `logout`, ...) and adds `roles` / `needsOnboarding` for the new platform.
- */
 const AuthContext = createContext();
 
-/**
- * Shape the auth user + profile row into the `user` object the UI expects.
- */
 const mapUser = (authUser, profile) => {
   if (!authUser) return null;
   const meta = authUser.user_metadata || {};
@@ -38,8 +28,6 @@ const mapUser = (authUser, profile) => {
     discordId: profile?.discord_id || meta.provider_id || null,
     bio: profile?.bio || null,
     regionId: profile?.region_id || null,
-    // Super users are higher-privileged admins: they get the admin dashboard
-    // too, so isAdmin is true for either flag. isSuperuser distinguishes them.
     isAdmin: profile?.is_admin || profile?.is_superuser || false,
     isSuperuser: profile?.is_superuser || false,
     provider: 'discord',
@@ -51,11 +39,9 @@ export const AuthProvider = ({ children }) => {
   const [authUser, setAuthUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [roles, setRoles] = useState([]);
-  // Start "loading" only when Supabase is configured (else there's nothing to load).
   const [isLoading, setIsLoading] = useState(isSupabaseConfigured());
   const [error, setError] = useState(null);
 
-  // Load the profile row + claimed roles for a user id.
   const loadProfile = useCallback(async (uid) => {
     if (!supabase || !uid) {
       setProfile(null);
@@ -70,14 +56,11 @@ export const AuthProvider = ({ children }) => {
     setRoles((roleRows ?? []).map((r) => r.role));
   }, []);
 
-  // Initialise session + subscribe to auth changes.
+  // --- Existing session init (UNCHANGED) ---
   useEffect(() => {
-    if (!isSupabaseConfigured()) {
-      return;
-    }
+    if (!isSupabaseConfigured()) return;
 
     let active = true;
-
     (async () => {
       const {
         data: { session },
@@ -106,9 +89,7 @@ export const AuthProvider = ({ children }) => {
     };
   }, [loadProfile]);
 
-  /**
-   * Start Discord OAuth via Supabase. Redirects the browser.
-   */
+  // --- Existing Discord OAuth (UNCHANGED) ---
   const loginWithDiscord = useCallback(async () => {
     setError(null);
     if (!isSupabaseConfigured()) {
@@ -127,9 +108,43 @@ export const AuthProvider = ({ children }) => {
     if (err) setError(err.message);
   }, []);
 
-  /**
-   * Sign out and clear local state.
-   */
+  // --- NEW: Email/Password Sign In ---
+  const signInWithEmail = useCallback(async (email, password) => {
+    setError(null);
+    if (!isSupabaseConfigured()) {
+      setError('Supabase is not configured.');
+      return;
+    }
+    const { data, error: err } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (err) {
+      setError(err.message);
+      throw err;
+    }
+    return data.user;
+  }, []);
+
+  // --- NEW: Email/Password Sign Up ---
+  const signUpWithEmail = useCallback(async (email, password) => {
+    setError(null);
+    if (!isSupabaseConfigured()) {
+      setError('Supabase is not configured.');
+      return;
+    }
+    const { data, error: err } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+    if (err) {
+      setError(err.message);
+      throw err;
+    }
+    return data.user;
+  }, []);
+
+  // --- Existing logout (UNCHANGED) ---
   const logout = useCallback(async () => {
     setError(null);
     clearProfileCache();
@@ -140,7 +155,6 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const clearError = useCallback(() => setError(null), []);
-
   const refreshProfile = useCallback(() => {
     if (authUser) return loadProfile(authUser.id);
   }, [authUser, loadProfile]);
@@ -152,9 +166,10 @@ export const AuthProvider = ({ children }) => {
     isLoading,
     error,
     isAuthenticated: !!authUser,
-    // A signed-in user with no roles yet still needs to set up their profile.
     needsOnboarding: !!authUser && roles.length === 0,
-    loginWithDiscord,
+    loginWithDiscord,     // <- Existing
+    signInWithEmail,      // <- NEW (add this line)
+    signUpWithEmail,      // <- NEW (add this line)
     logout,
     clearError,
     refreshProfile,
@@ -163,12 +178,6 @@ export const AuthProvider = ({ children }) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-/**
- * Custom hook to use authentication context.
- * @returns {Object} Authentication state and methods
- * @throws {Error} If used outside AuthProvider
- */
-// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

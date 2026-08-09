@@ -60,6 +60,19 @@ export const APP_CONSTANTS = {
     LOGIN_SUBTITLE: 'Sign in with Discord to continue',
     LOGIN_FOOTNOTE: 'We only use Discord to identify you. No password required.',
 
+    // --- NEW: Email/Password Auth ---
+    SIGN_UP_TITLE: 'Create Account',
+    SIGN_UP_SUBTITLE: 'Sign up with email and password.',
+    EMAIL_LABEL: 'Email',
+    PASSWORD_LABEL: 'Password',
+    PASSWORD_MIN_LENGTH: 6,
+    ALREADY_ACCOUNT: 'Already have an account?',
+    NO_ACCOUNT: "Don't have an account?",
+    CREATE_ONE: 'Create one',
+    SIGN_IN_BUTTON: 'Sign In',
+    SIGN_UP_BUTTON: 'Sign Up',
+    OR_SEPARATOR: 'or',
+
     // Discord OAuth
     DISCORD_LOGIN: 'Continue with Discord',
     CONNECTING_DISCORD: 'Connecting to Discord...',
@@ -135,6 +148,10 @@ export const APP_CONSTANTS = {
     SAVE: 'Save profile',
     SAVING: 'Saving…',
     SELECT_PLACEHOLDER: 'Select…',
+    // ----- NEW REFERRAL KEYS -----
+    REFERRER_LABEL: 'Who invited you?',
+    REFERRER_SEARCH_PLACEHOLDER: 'Search for a user…',
+    REFERRER_SELECTED: 'Invited by', // used in view
   },
 
   // ========================================
@@ -414,6 +431,8 @@ export const APP_CONSTANTS = {
     ENDORSE: 'Endorse',
     ENDORSED: 'Endorsed',
     ENDORSEMENTS: 'endorsements',
+    // ----- NEW REFERRAL KEY -----
+    INVITED_BY: 'Invited by',
   },
 
   // ========================================
