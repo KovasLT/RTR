@@ -12,6 +12,16 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const handleDiscordLogin = async () => {
+    setError('');
+    try {
+      await signInWithDiscord();
+      // After redirect, user will leave the page, so we don't navigate here.
+    } catch (err) {
+      setError(err.message || 'Discord login failed.');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -43,13 +53,15 @@ const Login = () => {
           {isSignUp ? auth.SIGN_UP_SUBTITLE : auth.LOGIN_SUBTITLE}
         </p>
 
-        {/* Discord Button */}
+        {/* Discord Button - now with error handling */}
         <button
-          onClick={signInWithDiscord}
+          onClick={handleDiscordLogin}
           className="w-full bg-[#5865F2] hover:bg-[#4752C4] text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 mb-4"
         >
           <i className="fab fa-discord text-xl"></i> {auth.DISCORD_LOGIN}
         </button>
+
+        {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
 
         <div className="relative my-4">
           <div className="absolute inset-0 flex items-center">
@@ -79,7 +91,6 @@ const Login = () => {
             required
             minLength={auth.PASSWORD_MIN_LENGTH || 6}
           />
-          {error && <p className="text-red-400 text-sm mb-2">{error}</p>}
           <button
             type="submit"
             disabled={loading}
