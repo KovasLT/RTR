@@ -5,7 +5,7 @@ import { APP_CONSTANTS } from '../app-constants';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { signInWithDiscord, signInWithEmail, signUpWithEmail } = useAuth();
+  const { loginWithDiscord, signInWithEmail, signUpWithEmail } = useAuth(); // fixed
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -15,8 +15,7 @@ const Login = () => {
   const handleDiscordLogin = async () => {
     setError('');
     try {
-      await signInWithDiscord();
-      // After redirect, user will leave the page, so we don't navigate here.
+      await loginWithDiscord();
     } catch (err) {
       setError(err.message || 'Discord login failed.');
     }
@@ -53,7 +52,6 @@ const Login = () => {
           {isSignUp ? auth.SIGN_UP_SUBTITLE : auth.LOGIN_SUBTITLE}
         </p>
 
-        {/* Discord Button - now with error handling */}
         <button
           onClick={handleDiscordLogin}
           className="w-full bg-[#5865F2] hover:bg-[#4752C4] text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 mb-4"
@@ -72,7 +70,6 @@ const Login = () => {
           </div>
         </div>
 
-        {/* Email/Password Form */}
         <form onSubmit={handleSubmit}>
           <input
             type="email"
