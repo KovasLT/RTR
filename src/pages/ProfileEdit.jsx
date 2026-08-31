@@ -63,6 +63,11 @@ const ProfileEdit = () => {
 
   // ---- Inline debounced referrer search (no external hook) ----
   useEffect(() => {
+    // ✅ FIX: guard against null user
+    if (!user) {
+      setReferrerOptions([]);
+      return;
+    }
     if (!referrerSearch || referrerSearch.length < 2) {
       setReferrerOptions([]);
       return;
@@ -75,7 +80,7 @@ const ProfileEdit = () => {
             .from('profiles')
             .select('id, display_name, handle')
             .ilike('display_name', `%${referrerSearch}%`)
-            .neq('id', user.id)
+            .neq('id', user.id)   // ✅ now safe
             .limit(10);
           if (error) throw error;
           setReferrerOptions(data || []);
@@ -90,7 +95,7 @@ const ProfileEdit = () => {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [referrerSearch, user.id]);
+  }, [referrerSearch, user]); // ✅ dependency on `user` (not just user.id)
 
   // Load profile data into form
   useEffect(() => {
@@ -167,6 +172,11 @@ const ProfileEdit = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // ✅ FIX: guard against null user
+    if (!user) {
+      setError('Not authenticated.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
