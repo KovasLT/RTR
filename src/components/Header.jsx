@@ -7,7 +7,6 @@ import { useUnreadCount } from '../hooks/useDirectMessages';
 
 const NAV = APP_CONSTANTS.NAV;
 
-// ----- ADDED "Learn" to the nav links -----
 const NAV_LINKS = [
   { to: '/', label: NAV.HOME, exact: true },
   { to: '/news', label: NAV.NEWS },
@@ -15,7 +14,7 @@ const NAV_LINKS = [
   { to: '/teams', label: NAV.TEAMS_RANKING },
   { to: '/players', label: NAV.PLAYERS_RANKING },
   { to: '/community', label: NAV.INFORMATION },
-  { to: '/learn', label: NAV.LEARN },   // 👈 NEW
+  { to: '/learn', label: NAV.LEARN },
 ];
 
 const Header = () => {
@@ -64,6 +63,10 @@ const Header = () => {
       </Link>
       <Link to="/profile/edit" onClick={closeAll} className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white">
         <i className="fas fa-user-pen w-4 text-center"></i>{NAV.EDIT_PROFILE}
+      </Link>
+      {/* 👇 NEW – Change Password link */}
+      <Link to="/change-password" onClick={closeAll} className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-300 hover:bg-gray-800 hover:text-white">
+        <i className="fas fa-key w-4 text-center"></i>{NAV.CHANGE_PASSWORD}
       </Link>
       <button
         onClick={() => {

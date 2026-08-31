@@ -18,7 +18,8 @@ const Community = lazy(() => import('./pages/Community'));
 const News = lazy(() => import('./pages/News'));
 const Login = lazy(() => import('./pages/Login'));
 const Directory = lazy(() => import('./pages/Directory'));
-const Learn = lazy(() => import('./pages/Learn'));            // 👈 NEW
+const Learn = lazy(() => import('./pages/Learn'));
+const ChangePassword = lazy(() => import('./pages/ChangePassword')); // 👈 NEW
 const ProfileView = lazy(() => import('./pages/ProfileView'));
 const ProfileEdit = lazy(() => import('./pages/ProfileEdit'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -52,7 +53,8 @@ function App() {
                       <Route path="/community" element={<Community />} />
                       <Route path="/news" element={<News />} />
                       <Route path="/directory" element={<Directory />} />
-                      <Route path="/learn" element={<Learn />} />          {/* 👈 NEW ROUTE */}
+                      <Route path="/learn" element={<Learn />} />
+                      <Route path="/change-password" element={<ChangePassword />} /> {/* 👈 NEW */}
                       <Route path="/login" element={<Login />} />
                       <Route path="/register" element={<Navigate to="/login" replace />} />
                       <Route path="/onboarding" element={<ProfileEdit />} />

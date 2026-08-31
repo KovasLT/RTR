@@ -41,6 +41,7 @@ export const APP_CONSTANTS = {
     LOGOUT: 'Logout', // Logout button
     PROFILE: 'Profile', // User profile link
     EDIT_PROFILE: 'Edit profile', // Edit profile link in user menu
+    CHANGE_PASSWORD: 'Change Password', // 👈 NEW – Password change link
     DASHBOARD: 'Dashboard', // Role dashboard link
     ADMIN: 'Admin', // Admin dashboard link (admins only)
     MENU: 'Menu', // Mobile menu toggle label
