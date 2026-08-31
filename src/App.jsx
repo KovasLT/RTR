@@ -18,6 +18,7 @@ const Community = lazy(() => import('./pages/Community'));
 const News = lazy(() => import('./pages/News'));
 const Login = lazy(() => import('./pages/Login'));
 const Directory = lazy(() => import('./pages/Directory'));
+const Learn = lazy(() => import('./pages/Learn'));            // 👈 NEW
 const ProfileView = lazy(() => import('./pages/ProfileView'));
 const ProfileEdit = lazy(() => import('./pages/ProfileEdit'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -36,42 +37,43 @@ function HomeRoute() {
 function App() {
   return (
     <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ChatProvider>   {/* ✅ Must be inside AuthProvider but outside Router */}
-          <Router>
-            <div className="bg-[#0a0a0a] text-gray-300 font-sans min-h-screen flex flex-col w-full">
-              <Header />
-              <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-                <Suspense fallback={<LoadingSpinner />}>
-                  <Routes>
-                    <Route path="/" element={<HomeRoute />} />
-                    <Route path="/teams" element={<Teams />} />
-                    <Route path="/players" element={<Players />} />
-                    <Route path="/community" element={<Community />} />
-                    <Route path="/news" element={<News />} />
-                    <Route path="/directory" element={<Directory />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/register" element={<Navigate to="/login" replace />} />
-                    <Route path="/onboarding" element={<ProfileEdit />} />
-                    <Route path="/profile/edit" element={<ProfileEdit />} />
-                    <Route path="/profile" element={<ProfileView />} />
-                    <Route path="/profile/:id" element={<ProfileView />} />
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/tournaments" element={<TournamentsPage />} />
-                    <Route path="/team/:id" element={<TeamManage />} />
-                    <Route path="/player/:id" element={<PlayerPage />} />
-                    <Route path="/admin" element={<AdminDashboard />} />
-                    <Route path="/auth/discord/callback" element={<DiscordCallback />} />
-                  </Routes>
-                </Suspense>
-              </main>
-              <Footer />
-            </div>
-          </Router>
-        </ChatProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <ChatProvider>
+            <Router>
+              <div className="bg-[#0a0a0a] text-gray-300 font-sans min-h-screen flex flex-col w-full">
+                <Header />
+                <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <Routes>
+                      <Route path="/" element={<HomeRoute />} />
+                      <Route path="/teams" element={<Teams />} />
+                      <Route path="/players" element={<Players />} />
+                      <Route path="/community" element={<Community />} />
+                      <Route path="/news" element={<News />} />
+                      <Route path="/directory" element={<Directory />} />
+                      <Route path="/learn" element={<Learn />} />          {/* 👈 NEW ROUTE */}
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/register" element={<Navigate to="/login" replace />} />
+                      <Route path="/onboarding" element={<ProfileEdit />} />
+                      <Route path="/profile/edit" element={<ProfileEdit />} />
+                      <Route path="/profile" element={<ProfileView />} />
+                      <Route path="/profile/:id" element={<ProfileView />} />
+                      <Route path="/dashboard" element={<Dashboard />} />
+                      <Route path="/tournaments" element={<TournamentsPage />} />
+                      <Route path="/team/:id" element={<TeamManage />} />
+                      <Route path="/player/:id" element={<PlayerPage />} />
+                      <Route path="/admin" element={<AdminDashboard />} />
+                      <Route path="/auth/discord/callback" element={<DiscordCallback />} />
+                    </Routes>
+                  </Suspense>
+                </main>
+                <Footer />
+              </div>
+            </Router>
+          </ChatProvider>
+        </AuthProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }

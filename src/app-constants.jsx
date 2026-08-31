@@ -34,6 +34,7 @@ export const APP_CONSTANTS = {
     TEAMS_RANKING: 'Teams Ranking', // Teams leaderboard page link
     PLAYERS_RANKING: 'Players Ranking', // Players ranking page link
     INFORMATION: 'Information', // Community information page link
+    LEARN: 'Learn', // Guides and links
     JOIN_DISCORD: 'Join Discord', // Discord CTA button
     LOGIN: 'Login', // Login page link
     REGISTER: 'Register', // Register page link
