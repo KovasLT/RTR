@@ -2,6 +2,24 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getParticipantName } from './utils';
 
+// ── Timezone helpers ────────────────────────────────────────────────
+const utcToLocalInput = (utcISO) => {
+  if (!utcISO) return '';
+  const date = new Date(utcISO);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+const localToUTCISO = (localDateTime) => {
+  if (!localDateTime) return null;
+  return new Date(localDateTime).toISOString();
+};
+// ──────────────────────────────────────────────────────────────────────
+
 export default function ScheduleTab({ tournamentId, tournamentType, participants }) {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,7 +32,14 @@ export default function ScheduleTab({ tournamentId, tournamentType, participants
       .select('*')
       .eq('tournament_id', tournamentId)
       .order('scheduled_time', { ascending: true });
-    if (!error) setMatches(data || []);
+    if (!error) {
+      // Convert UTC timestamps to local strings for the input
+      const matchesWithLocalTime = (data || []).map(m => ({
+        ...m,
+        scheduled_time: m.scheduled_time ? utcToLocalInput(m.scheduled_time) : ''
+      }));
+      setMatches(matchesWithLocalTime);
+    }
     setLoading(false);
   };
 
@@ -54,6 +79,7 @@ export default function ScheduleTab({ tournamentId, tournamentType, participants
     setSaving(true);
     const newMatches = matches.filter(m => m.id.startsWith('temp-'));
     const existingMatches = matches.filter(m => !m.id.startsWith('temp-'));
+
     for (const match of newMatches) {
       if (!match.participant_a_id || !match.participant_b_id || !match.scheduled_time) {
         alert('Please fill both participants and time for new matches');
@@ -64,23 +90,25 @@ export default function ScheduleTab({ tournamentId, tournamentType, participants
         tournament_id: tournamentId,
         participant_a_id: match.participant_a_id,
         participant_b_id: match.participant_b_id,
-        scheduled_time: match.scheduled_time,
+        scheduled_time: localToUTCISO(match.scheduled_time), // ✅ convert to UTC
         round: match.round,
         match_order: match.match_order,
         status: match.status
       });
       if (error) console.error('Insert error:', error);
     }
+
     for (const match of existingMatches) {
       await supabase.from('scheduled_matches').update({
         participant_a_id: match.participant_a_id,
         participant_b_id: match.participant_b_id,
-        scheduled_time: match.scheduled_time,
+        scheduled_time: localToUTCISO(match.scheduled_time), // ✅ convert to UTC
         round: match.round,
         match_order: match.match_order,
         status: match.status
       }).eq('id', match.id);
     }
+
     await fetchMatches();
     setSaving(false);
     alert('Schedule saved');
@@ -130,7 +158,12 @@ export default function ScheduleTab({ tournamentId, tournamentType, participants
                 </select>
               </div>
               <div className="md:col-span-2">
-                <input type="datetime-local" className="w-full bg-gray-800 text-sm text-white p-2 rounded" value={match.scheduled_time ? new Date(match.scheduled_time).toISOString().slice(0,16) : ''} onChange={e => updateMatch(match.id, 'scheduled_time', e.target.value)} />
+                <input
+                  type="datetime-local"
+                  className="w-full bg-gray-800 text-sm text-white p-2 rounded"
+                  value={match.scheduled_time} // already local string
+                  onChange={e => updateMatch(match.id, 'scheduled_time', e.target.value)}
+                />
               </div>
               <div className="md:col-span-1 text-right">
                 <button onClick={() => removeMatch(match.id)} className="text-red-500 hover:text-red-400"><i className="fas fa-trash"></i></button>

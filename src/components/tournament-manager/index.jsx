@@ -567,7 +567,7 @@ export default function TournamentManagerPanel({ rating, userId }) {
     }
   };
 
-  // ========== STANDINGS ==========
+  // ========== STANDINGS with head‑to‑head tie‑breaker ==========
   const standings = useMemo(() => {
     if (currentTournament?.format !== 'round_robin') return [];
     const stats = {};
@@ -579,8 +579,8 @@ export default function TournamentManagerPanel({ rating, userId }) {
         played: 0, w: 0, l: 0, pts: 0
       };
     });
-    reportedMatches.forEach(m => {
-      if (m.flagged) return;
+    const matches = reportedMatches.filter(m => !m.flagged);
+    matches.forEach(m => {
       const p1 = m.team_a_id;
       const p2 = m.team_b_id;
       const s1 = m.score_team_a;
@@ -611,9 +611,54 @@ export default function TournamentManagerPanel({ rating, userId }) {
         stats[p1].l++;
       }
     });
-    return Object.values(stats).sort((a, b) => b.pts - a.pts || b.w - a.w);
+
+    // Build standings array
+    let standingsArray = Object.values(stats);
+
+    // Primary sort: points, then wins
+    standingsArray.sort((a, b) => b.pts - a.pts || b.w - a.w);
+
+    // ---------- HEAD-TO-HEAD TIE-BREAKER ----------
+    let i = 0;
+    while (i < standingsArray.length) {
+      let j = i;
+      while (
+        j < standingsArray.length - 1 &&
+        standingsArray[j].pts === standingsArray[j+1].pts &&
+        standingsArray[j].w === standingsArray[j+1].w
+      ) {
+        j++;
+      }
+      if (j - i > 0) {
+        const tiedSlice = standingsArray.slice(i, j+1);
+        const tiedIds = tiedSlice.map(t => t.id);
+        const h2hMatches = matches.filter(m =>
+          tiedIds.includes(m.team_a_id) && tiedIds.includes(m.team_b_id)
+        );
+        const h2hPoints = {};
+        tiedIds.forEach(id => h2hPoints[id] = 0);
+        h2hMatches.forEach(m => {
+          const sA = m.score_team_a;
+          const sB = m.score_team_b;
+          if (sA > sB) h2hPoints[m.team_a_id] += 3;
+          else if (sB > sA) h2hPoints[m.team_b_id] += 3;
+          else { h2hPoints[m.team_a_id] += 1; h2hPoints[m.team_b_id] += 1; }
+        });
+        tiedSlice.sort((a, b) => {
+          const diff = (h2hPoints[b.id] || 0) - (h2hPoints[a.id] || 0);
+          if (diff !== 0) return diff;
+          // If still tied, you could add goal difference or keep stable order
+          return 0;
+        });
+        standingsArray.splice(i, j-i+1, ...tiedSlice);
+      }
+      i = j + 1;
+    }
+
+    return standingsArray;
   }, [reportedMatches, participants, currentTournament]);
 
+  // ─── Render bracket sections ────────────────────────────────────────
   const renderBracketSection = (bracketArray, bracketKey, title) => {
     return (
       <div className="mb-10">
@@ -665,6 +710,7 @@ export default function TournamentManagerPanel({ rating, userId }) {
     );
   };
 
+  // ========== JSX ==========
   return (
     <div className="rtr-card relative min-h-[400px]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 border-b border-gray-800 pb-4 gap-4">
