@@ -394,7 +394,6 @@ export default function TournamentsPanel() {
                 <div><span className="text-gray-500">Dates:</span> {selectedTournament.start_date} – {selectedTournament.end_date}</div>
                 <div><span className="text-gray-500">Format:</span> {selectedTournament.format?.replace('_', ' ')}</div>
                 <div><span className="text-gray-500">Elo Range:</span> {selectedTournament.min_elo} – {selectedTournament.max_elo}</div>
-                {/* UPDATED: show creator's display name or handle instead of raw UUID */}
                 <div>
                   <span className="text-gray-500">Created by:</span>{' '}
                   {selectedTournament.creator?.display_name ||
@@ -477,7 +476,7 @@ export default function TournamentsPanel() {
                 </div>
               )}
 
-              {/* Standings (round robin) – using StandingsTable */}
+              {/* Standings (round robin) with head-to-head tie-breaker */}
               {selectedTournament.format === 'round_robin' && (
                 <div>
                   <h3 className="text-white font-semibold text-lg mb-3">Standings</h3>
@@ -493,7 +492,8 @@ export default function TournamentsPanel() {
                       };
                     });
                     // Process reported matches, adding missing participants on the fly
-                    (reportedMatchesMap[selectedTournament.id] || []).forEach(m => {
+                    const matches = reportedMatchesMap[selectedTournament.id] || [];
+                    matches.forEach(m => {
                       const p1 = m.team_a_id;
                       const p2 = m.team_b_id;
                       const s1 = m.score_team_a;
@@ -524,7 +524,67 @@ export default function TournamentsPanel() {
                         stats[p1].l++;
                       }
                     });
-                    const standingsArray = Object.values(stats).sort((a,b) => b.pts - a.pts || b.w - a.w);
+
+                    // Build standings array
+                    let standingsArray = Object.values(stats);
+
+                    // Primary sort: points, then wins
+                    standingsArray.sort((a, b) => b.pts - a.pts || b.w - a.w);
+
+                    // ---------- HEAD-TO-HEAD TIE-BREAKER ----------
+                    // Group teams with identical points and wins
+                    let i = 0;
+                    while (i < standingsArray.length) {
+                      let j = i;
+                      while (
+                        j < standingsArray.length - 1 &&
+                        standingsArray[j].pts === standingsArray[j+1].pts &&
+                        standingsArray[j].w === standingsArray[j+1].w
+                      ) {
+                        j++;
+                      }
+                      // If more than one team is tied, apply head-to-head
+                      if (j - i > 0) {
+                        const tiedSlice = standingsArray.slice(i, j+1);
+                        const tiedIds = tiedSlice.map(t => t.id);
+
+                        // Get matches that were played exclusively among these tied teams
+                        const h2hMatches = matches.filter(m =>
+                          tiedIds.includes(m.team_a_id) && tiedIds.includes(m.team_b_id)
+                        );
+
+                        // Compute head-to-head points for each tied team
+                        const h2hPoints = {};
+                        tiedIds.forEach(id => h2hPoints[id] = 0);
+                        h2hMatches.forEach(m => {
+                          const sA = m.score_team_a;
+                          const sB = m.score_team_b;
+                          if (sA > sB) {
+                            h2hPoints[m.team_a_id] += 3;
+                          } else if (sB > sA) {
+                            h2hPoints[m.team_b_id] += 3;
+                          } else {
+                            // Draw: both get 1 point (optional, but included for completeness)
+                            h2hPoints[m.team_a_id] += 1;
+                            h2hPoints[m.team_b_id] += 1;
+                          }
+                        });
+
+                        // Sort the tied slice by head-to-head points, then by total points (already equal) or goal diff
+                        tiedSlice.sort((a, b) => {
+                          const diff = (h2hPoints[b.id] || 0) - (h2hPoints[a.id] || 0);
+                          if (diff !== 0) return diff;
+                          // If still tied, you could add goal difference in head-to-head matches
+                          // For now, keep the order as is (stable)
+                          return 0;
+                        });
+
+                        // Replace the slice in the main array
+                        standingsArray.splice(i, j-i+1, ...tiedSlice);
+                      }
+                      i = j + 1;
+                    }
+
                     return <StandingsTable standings={standingsArray} />;
                   })()}
                 </div>
