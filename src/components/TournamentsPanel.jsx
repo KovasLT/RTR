@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth.jsx';
 import { supabase } from '../lib/supabase';
 import { useMyTeams, useMyMemberships } from '../hooks/useTeams.js';
-import { getParticipantName } from '../components/tournament-manager/utils';
-import StandingsTable from '../components/tournament-manager/StandingsTable';
+import { getParticipantName } from './tournament-manager/utils';
+import StandingsTable from './tournament-manager/StandingsTable';
+import DoubleEliminationBracket from './tournament-manager/DoubleEliminationBracket';
+import { initialBracketState } from './tournament-manager/bracketDefaults';
 
 export default function TournamentsPanel() {
   const { user } = useAuth();
@@ -90,77 +92,14 @@ export default function TournamentsPanel() {
     return assignments;
   };
 
-  const buildBracketState = (assignments, reportedMatches) => {
-    const bracketState = {
-      single: [
-        { roundName: "Quarterfinals", slots: [{ matchId: '' }, { matchId: '' }, { matchId: '' }, { matchId: '' }] },
-        { roundName: "Semifinals", slots: [{ matchId: '' }, { matchId: '' }] },
-        { roundName: "Finals", slots: [{ matchId: '' }] }
-      ],
-      upper: [
-        { roundName: "UB Semifinals", slots: [{ matchId: '' }, { matchId: '' }] },
-        { roundName: "UB Finals", slots: [{ matchId: '' }] }
-      ],
-      lower: [
-        { roundName: "LB Round 1", slots: [{ matchId: '' }, { matchId: '' }] },
-        { roundName: "LB Finals", slots: [{ matchId: '' }] }
-      ],
-      grand: [
-        { roundName: "Grand Finals", slots: [{ matchId: '' }] }
-      ]
-    };
-
+  const buildBracketState = (assignments) => {
+    const bracketState = initialBracketState();
     for (const [key, matchId] of Object.entries(assignments)) {
       const [bracketType, roundIdx, slotIdx] = key.split('-');
-      if (bracketState[bracketType] && bracketState[bracketType][parseInt(roundIdx)]) {
-        bracketState[bracketType][parseInt(roundIdx)].slots[parseInt(slotIdx)].matchId = matchId;
-      }
+      const slot = bracketState[bracketType]?.[parseInt(roundIdx)]?.slots?.[parseInt(slotIdx)];
+      if (slot) slot.matchId = matchId;
     }
     return bracketState;
-  };
-
-  const renderBracketSection = (bracketArray, reportedMatches, participants, tournamentType, title) => {
-    return (
-      <div className="mb-10">
-        {title && <h5 className="text-xs font-bold text-indigo-400 mb-6 uppercase border-b border-gray-800 pb-2 inline-block">{title}</h5>}
-        <div className="flex flex-row justify-between gap-8 py-4 relative">
-          {bracketArray.map((round, rIdx) => (
-            <div key={round.roundName} className="flex flex-col justify-around flex-1 relative">
-              <h6 className="text-center text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-6 absolute -top-8 w-full">{round.roundName}</h6>
-              {round.slots.map((slot, sIdx) => {
-                const assignedMatch = reportedMatches.find(m => m.id === slot.matchId);
-                return (
-                  <div key={`${rIdx}-${sIdx}`} className="my-2 flex flex-col relative z-10 bg-[#1a1c23] border border-gray-700 rounded-lg shadow-md">
-                    {rIdx < bracketArray.length - 1 && <div className="absolute w-4 h-[2px] bg-gray-700 -right-4 top-1/2"></div>}
-                    <div className="bg-[#0f1219] border-b border-gray-800 p-1.5 rounded-t-lg">
-                      <div className="text-[10px] text-indigo-300 font-bold text-center">Match</div>
-                    </div>
-                    <div className="p-3 space-y-2">
-                      <div className="flex justify-between text-xs">
-                        <span className={`truncate w-3/4 ${assignedMatch && assignedMatch.score_team_a > assignedMatch.score_team_b ? 'text-white font-bold' : 'text-gray-400'}`}>
-                          {assignedMatch ? getParticipantName(assignedMatch.team_a_id, participants, tournamentType) : '---'}
-                        </span>
-                        <span className="font-mono text-gray-400 bg-gray-800/50 px-1.5 py-0.5 rounded">
-                          {assignedMatch ? assignedMatch.score_team_a : '-'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className={`truncate w-3/4 ${assignedMatch && assignedMatch.score_team_b > assignedMatch.score_team_a ? 'text-white font-bold' : 'text-gray-400'}`}>
-                          {assignedMatch ? getParticipantName(assignedMatch.team_b_id, participants, tournamentType) : '---'}
-                        </span>
-                        <span className="font-mono text-gray-400 bg-gray-800/50 px-1.5 py-0.5 rounded">
-                          {assignedMatch ? assignedMatch.score_team_b : '-'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
   };
 
   const fetchAverageRating = async (ids, type) => {
@@ -175,7 +114,6 @@ export default function TournamentsPanel() {
     return Math.round(sum / data.length);
   };
 
-  // ---------- UPDATED fetchTournaments ----------
   const fetchTournaments = async () => {
     setLoading(true);
     setError(null);
@@ -191,7 +129,6 @@ export default function TournamentsPanel() {
         return;
       }
 
-      // 1. Fetch creator profiles for all unique created_by IDs
       const creatorIds = tournamentsData.map(t => t.created_by).filter(id => id);
       let profilesMap = {};
       if (creatorIds.length) {
@@ -204,7 +141,6 @@ export default function TournamentsPanel() {
         }
       }
 
-      // 2. Enrich each tournament with participants, schedule, reported matches, bracket assignments, and creator info
       const tournamentsWithDetails = await Promise.all(
         tournamentsData.map(async (tournament) => {
           const participants = await fetchParticipantsForTournament(tournament.id, tournament.tournament_type);
@@ -233,7 +169,6 @@ export default function TournamentsPanel() {
           const assignments = await fetchBracketAssignments(tournament.id);
           setBracketAssignmentsMap(prev => ({ ...prev, [tournament.id]: assignments }));
 
-          // Attach the creator profile (if found)
           return {
             ...tournament,
             participants,
@@ -456,21 +391,29 @@ export default function TournamentsPanel() {
                   <h3 className="text-white font-semibold text-lg mb-3">Bracket</h3>
                   {(() => {
                     const assignments = bracketAssignmentsMap[selectedTournament.id] || {};
-                    const bracketState = buildBracketState(assignments, reportedMatchesMap[selectedTournament.id] || []);
+                    const bracketState = buildBracketState(assignments);
                     const reportedMatches = reportedMatchesMap[selectedTournament.id] || [];
                     const participants = selectedTournament.participants;
                     const tournamentType = selectedTournament.tournament_type;
+
+                    if (selectedTournament.format === 'double_elimination') {
+                      return (
+                        <DoubleEliminationBracket
+                          bracketState={bracketState}
+                          reportedMatches={reportedMatches}
+                          participants={participants}
+                          tournamentType={tournamentType}
+                        />
+                      );
+                    }
+                    // Fallback: single-elimination (playoffs) — reuse the same component's `single` shape
                     return (
-                      <div className="overflow-x-auto">
-                        {selectedTournament.format === 'playoffs' && renderBracketSection(bracketState.single, reportedMatches, participants, tournamentType, null)}
-                        {selectedTournament.format === 'double_elimination' && (
-                          <div className="space-y-8">
-                            {renderBracketSection(bracketState.upper, reportedMatches, participants, tournamentType, 'Upper Bracket')}
-                            {renderBracketSection(bracketState.lower, reportedMatches, participants, tournamentType, 'Lower Bracket')}
-                            {renderBracketSection(bracketState.grand, reportedMatches, participants, tournamentType, 'Grand Finals')}
-                          </div>
-                        )}
-                      </div>
+                      <DoubleEliminationBracket
+                        bracketState={{ upper: bracketState.single, lower: [], grand: [] }}
+                        reportedMatches={reportedMatches}
+                        participants={participants}
+                        tournamentType={tournamentType}
+                      />
                     );
                   })()}
                 </div>
@@ -482,7 +425,6 @@ export default function TournamentsPanel() {
                   <h3 className="text-white font-semibold text-lg mb-3">Standings</h3>
                   {(() => {
                     const stats = {};
-                    // Include registered participants
                     selectedTournament.participants.forEach(p => {
                       const id = p.team_id || p.player_id;
                       stats[id] = {
@@ -491,7 +433,6 @@ export default function TournamentsPanel() {
                         played: 0, w: 0, l: 0, pts: 0
                       };
                     });
-                    // Process reported matches, adding missing participants on the fly
                     const matches = reportedMatchesMap[selectedTournament.id] || [];
                     matches.forEach(m => {
                       const p1 = m.team_a_id;
@@ -525,14 +466,9 @@ export default function TournamentsPanel() {
                       }
                     });
 
-                    // Build standings array
                     let standingsArray = Object.values(stats);
-
-                    // Primary sort: points, then wins
                     standingsArray.sort((a, b) => b.pts - a.pts || b.w - a.w);
 
-                    // ---------- HEAD-TO-HEAD TIE-BREAKER ----------
-                    // Group teams with identical points and wins
                     let i = 0;
                     while (i < standingsArray.length) {
                       let j = i;
@@ -543,17 +479,12 @@ export default function TournamentsPanel() {
                       ) {
                         j++;
                       }
-                      // If more than one team is tied, apply head-to-head
                       if (j - i > 0) {
                         const tiedSlice = standingsArray.slice(i, j+1);
                         const tiedIds = tiedSlice.map(t => t.id);
-
-                        // Get matches that were played exclusively among these tied teams
                         const h2hMatches = matches.filter(m =>
                           tiedIds.includes(m.team_a_id) && tiedIds.includes(m.team_b_id)
                         );
-
-                        // Compute head-to-head points for each tied team
                         const h2hPoints = {};
                         tiedIds.forEach(id => h2hPoints[id] = 0);
                         h2hMatches.forEach(m => {
@@ -564,22 +495,15 @@ export default function TournamentsPanel() {
                           } else if (sB > sA) {
                             h2hPoints[m.team_b_id] += 3;
                           } else {
-                            // Draw: both get 1 point (optional, but included for completeness)
                             h2hPoints[m.team_a_id] += 1;
                             h2hPoints[m.team_b_id] += 1;
                           }
                         });
-
-                        // Sort the tied slice by head-to-head points, then by total points (already equal) or goal diff
                         tiedSlice.sort((a, b) => {
                           const diff = (h2hPoints[b.id] || 0) - (h2hPoints[a.id] || 0);
                           if (diff !== 0) return diff;
-                          // If still tied, you could add goal difference in head-to-head matches
-                          // For now, keep the order as is (stable)
                           return 0;
                         });
-
-                        // Replace the slice in the main array
                         standingsArray.splice(i, j-i+1, ...tiedSlice);
                       }
                       i = j + 1;
