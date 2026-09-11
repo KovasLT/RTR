@@ -7,7 +7,6 @@ export function useMessages(conversationId, recipientId, onConversationCreated) 
     const { user } = useAuth();
     const queryClient = useQueryClient();
 
-    // Fetch messages – relies on the passed conversationId (may be null)
     const { data: messages = [], isLoading, error, refetch } = useQuery({
         queryKey: ['messages', conversationId],
         queryFn: async () => {
@@ -26,25 +25,28 @@ export function useMessages(conversationId, recipientId, onConversationCreated) 
         refetchOnWindowFocus: false,
     });
 
-    // Send mutation – now we call onConversationCreated when a new conv is made
     const sendMutation = useMutation({
         mutationFn: async (message) => {
             if (!recipientId || !user) throw new Error('Missing recipient or user');
 
             let convId = conversationId;
 
-            // If no conversation yet, find or create one
+            // If no conversation yet, find the one between these two users,
+            // or create it.
             if (!convId) {
                 const { data: existing, error: findError } = await supabase
                 .from('conversations')
                 .select('id')
-                .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
-                .or(`user1_id.eq.${recipientId},user2_id.eq.${recipientId}`);
+                .or(
+                    `and(user1_id.eq.${user.id},user2_id.eq.${recipientId}),` +
+                    `and(user1_id.eq.${recipientId},user2_id.eq.${user.id})`
+                )
+                .maybeSingle();
 
                 if (findError) throw findError;
 
-                if (existing && existing.length > 0) {
-                    convId = existing[0].id;
+                if (existing?.id) {
+                    convId = existing.id;
                 } else {
                     const { data: newConv, error: createError } = await supabase
                     .from('conversations')
@@ -56,7 +58,6 @@ export function useMessages(conversationId, recipientId, onConversationCreated) 
                 }
             }
 
-            // Insert message
             const { data, error } = await supabase
             .from('messages')
             .insert({
@@ -73,11 +74,9 @@ export function useMessages(conversationId, recipientId, onConversationCreated) 
             return { message: data, conversationId: convId };
         },
         onSuccess: (result) => {
-            // If we didn't have a conversation before, tell the parent
             if (!conversationId && onConversationCreated) {
                 onConversationCreated(result.conversationId);
             }
-            // Invalidate queries
             queryClient.invalidateQueries({ queryKey: ['messages', result.conversationId] });
             queryClient.invalidateQueries({ queryKey: ['messaging', user?.id] });
         },
@@ -89,7 +88,8 @@ export function useMessages(conversationId, recipientId, onConversationCreated) 
         error,
         sendMessage: sendMutation.mutateAsync,
         sending: sendMutation.isPending,
-        refetch: () => queryClient.invalidateQueries({ queryKey: ['messages', conversationId] }),
+        refetch: () =>
+        queryClient.invalidateQueries({ queryKey: ['messages', conversationId] }),
     };
 }
 

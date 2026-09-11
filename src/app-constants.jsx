@@ -323,6 +323,45 @@ export const APP_CONSTANTS = {
   },
 
   // ========================================
+  // TRADES & TRANSFERS
+  // ========================================
+  TRADES: {
+    TITLE: 'Trades & Transfers',
+    EMPTY: 'No trade requests.',
+    PROPOSE_TITLE: 'Propose trade',
+    PROPOSE_SUBTITLE: 'Offer this player to another team without a rating penalty.',
+    DESTINATION: 'Destination team',
+    MESSAGE: 'Message (optional)',
+    MESSAGE_PLACEHOLDER: 'Explain the trade — e.g. development team roster move…',
+    SEND: 'Send trade request',
+    SENDING: 'Sending…',
+    ACCEPT: 'Accept',
+    REJECT: 'Reject',
+    CANCEL: 'Cancel',
+    STATUS: {
+      pending: 'Pending',
+      accepted: 'Accepted',
+      rejected: 'Rejected',
+      cancelled: 'Cancelled',
+    },
+  },
+
+  // ========================================
+  // KICK / REMOVE PLAYER
+  // ========================================
+  KICK: {
+    TITLE: 'Remove player from team',
+    REASON_LABEL: 'Reason (sent to player as DM)',
+    REASON_PLACEHOLDER: 'Explain why the player is being removed…',
+    CONFIRM_WORD: 'KICK',
+    CONFIRM_LABEL: 'Type {word} to confirm',
+    CONFIRM_BUTTON: 'Remove player',
+    WORKING: 'Removing…',
+    WARNING:
+      'This deducts 20 rating points and the reason below will be sent to the player as a direct message.',
+  },
+
+  // ========================================
   // ADMIN DASHBOARD
   // ========================================
   ADMIN: {

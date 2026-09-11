@@ -4,10 +4,18 @@ import { useAuth } from '../hooks/useAuth.jsx';
 import { useTeam, useTeamMutations } from '../hooks/useTeams.js';
 import { useDirectory } from '../hooks/useProfiles.js';
 import { useRegions } from '../hooks/useReferenceData.js';
+import {
+  useTeamTradeRequests,
+  useTradeRequestMutations,
+} from '../hooks/useTradeRequests';
+import { sendDirectMessage } from '../lib/sendDirectMessage';
 import { supabase } from '../lib/supabase';
 import { APP_CONSTANTS } from '../app-constants';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Sparkline from '../components/Sparkline';
+import KickPlayerModal from '../components/KickPlayerModal';
+import TradeRequestModal from '../components/TradeRequestModal';
+import TradeRequestsInbox from '../components/TradeRequestsInbox';
 
 const T = APP_CONSTANTS.TEAM_MGMT;
 const inputClass =
@@ -19,7 +27,6 @@ const STATUS_OPTIONS = [
   { value: 'inactive', label: T.STATUS_INACTIVE },
 ];
 
-// team roles for members
 const TEAM_ROLES = ['player', 'captain', 'coach', 'analyst', 'substitute'];
 
 const personName = (p) => p?.display_name || p?.handle || 'Unknown';
@@ -44,6 +51,13 @@ const TeamManage = () => {
     removeStaff,
   } = useTeamMutations();
 
+  const { data: tradeRequests = [] } = useTeamTradeRequests(id);
+  const {
+    createTradeRequest,
+    respondToTradeRequest,
+    cancelTradeRequest,
+  } = useTradeRequestMutations();
+
   const [recentMatches, setRecentMatches] = useState([]);
   const [tournamentPlacements, setTournamentPlacements] = useState([]);
   const [winRate, setWinRate] = useState(null);
@@ -57,8 +71,14 @@ const TeamManage = () => {
   const [form, setForm] = useState(null);
   const [error, setError] = useState(null);
 
-  // Filter active members
-  const activeMembers = useMemo(() => (team?.members ?? []).filter(m => m.left_at === null), [team]);
+  const [kickTarget, setKickTarget] = useState(null);
+  const [tradeTarget, setTradeTarget] = useState(null);
+  const [busyTradeId, setBusyTradeId] = useState(null);
+
+  const activeMembers = useMemo(
+    () => (team?.members ?? []).filter((m) => m.left_at === null),
+    [team]
+  );
 
   const fetchTeamRank = async () => {
     if (!team) return;
@@ -110,7 +130,7 @@ const TeamManage = () => {
           .eq('rejected', false);
         if (allMatches && allMatches.length) {
           let wins = 0;
-          allMatches.forEach(m => {
+          allMatches.forEach((m) => {
             const isTeamA = m.team_a_id === team.id;
             const teamScore = isTeamA ? m.score_team_a : m.score_team_b;
             const oppScore = isTeamA ? m.score_team_b : m.score_team_a;
@@ -120,7 +140,7 @@ const TeamManage = () => {
         } else setWinRate(null);
 
         if (activeMembers.length) {
-          const memberIds = activeMembers.map(m => m.user_id);
+          const memberIds = activeMembers.map((m) => m.user_id);
           const { data: ratings } = await supabase
             .from('ratings')
             .select('subject_id, rating')
@@ -173,10 +193,15 @@ const TeamManage = () => {
         recruitmentNote: team.recruitment_note || '',
       });
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [team]);
 
-  const memberIds = useMemo(() => new Set(activeMembers.map((m) => m.user_id)), [activeMembers]);
+  const memberIds = useMemo(
+    () => new Set(activeMembers.map((m) => m.user_id)),
+    [activeMembers]
+  );
   const pendingApplies = (team?.applications ?? []).filter(
     (a) => a.status === 'pending' && a.type === 'apply'
   );
@@ -222,28 +247,92 @@ const TeamManage = () => {
     setShowSettings(false);
   };
 
-  // Handler to add myself with a role
   const handleAddMyself = async () => {
-    // We'll use a simple prompt for role, or we can set a default
-    const role = window.prompt('Enter your role (player, captain, coach, analyst, substitute):', 'player');
-    if (role === null) return; // cancelled
+    const role = window.prompt(
+      'Enter your role (player, captain, coach, analyst, substitute):',
+      'player'
+    );
+    if (role === null) return;
     if (!TEAM_ROLES.includes(role)) {
       alert('Invalid role. Choose from: ' + TEAM_ROLES.join(', '));
       return;
     }
     act(async () => {
-      await addTeamMember.mutateAsync({ teamId: team.id, userId: user.id, laneId: null, role });
+      await addTeamMember.mutateAsync({
+        teamId: team.id,
+        userId: user.id,
+        laneId: null,
+        role,
+      });
       refetch();
     });
   };
 
+  const confirmKick = async (reason) => {
+    if (!kickTarget) return;
+    const playerId = kickTarget.user_id;
+
+    // 1. Deliver the reason to the player first.
+    await sendDirectMessage({
+      senderId: user.id,
+      recipientId: playerId,
+      message: `You have been removed from ${team.name}. Reason: ${reason}`,
+    });
+
+    // 2. Remove (DB trigger handles the 20-point penalty).
+    await removeMember.mutateAsync({ teamId: team.id, userId: playerId });
+
+    setKickTarget(null);
+    refetch();
+    if (team) await fetchTeamRank();
+  };
+
+  const submitTrade = async ({ targetTeamId, message }) => {
+    if (!tradeTarget) return;
+    await createTradeRequest.mutateAsync({
+      playerId: tradeTarget.user_id,
+      fromTeamId: team.id,
+      toTeamId: targetTeamId,
+      message,
+    });
+    setTradeTarget(null);
+  };
+
+  const respondTrade = async (request, accept) => {
+    setBusyTradeId(request.id);
+    try {
+      await respondToTradeRequest.mutateAsync({ request, accept });
+      refetch();
+      if (accept) await fetchTeamRank();
+    } catch (e) {
+      setError(e.message || T.ERROR);
+    } finally {
+      setBusyTradeId(null);
+    }
+  };
+
+  const cancelTrade = async (request) => {
+    setBusyTradeId(request.id);
+    try {
+      await cancelTradeRequest.mutateAsync({ id: request.id });
+    } catch (e) {
+      setError(e.message || T.ERROR);
+    } finally {
+      setBusyTradeId(null);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
-      {/* Header with logo, name, region, motto, status, rank (no rating duplicate) */}
+      {/* Header */}
       <div className="rtr-card flex flex-wrap gap-4 items-start">
         <div className="flex items-center gap-4">
           {team.logo_url ? (
-            <img src={team.logo_url} alt={team.name} className="w-16 h-16 rounded-full object-cover" />
+            <img
+              src={team.logo_url}
+              alt={team.name}
+              className="w-16 h-16 rounded-full object-cover"
+            />
           ) : (
             <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center">
               <i className="fas fa-users text-2xl text-gray-500"></i>
@@ -258,12 +347,18 @@ const TeamManage = () => {
               </span>
             </div>
             {team.recruitment_note && (
-              <p className="text-sm text-gray-300 mt-1 italic">"{team.recruitment_note}"</p>
+              <p className="text-sm text-gray-300 mt-1 italic">
+                "{team.recruitment_note}"
+              </p>
             )}
             <div className="flex flex-wrap gap-3 mt-2 text-xs">
-              <span className="text-gray-400">{APP_CONSTANTS.TEAMS.STATUS[team.status] || team.status}</span>
+              <span className="text-gray-400">
+                {APP_CONSTANTS.TEAMS.STATUS[team.status] || team.status}
+              </span>
               {teamRank !== null && (
-                <span className="text-amber-400 font-mono font-bold">Rank: #{teamRank}</span>
+                <span className="text-amber-400 font-mono font-bold">
+                  Rank: #{teamRank}
+                </span>
               )}
             </div>
           </div>
@@ -271,12 +366,20 @@ const TeamManage = () => {
         <div className="ml-auto flex items-center gap-3">
           {isAuthenticated && !isManager ? (
             isMember ? (
-              <span className="bg-green-600/20 text-green-400 px-4 py-1.5 rounded-full text-sm">Member</span>
+              <span className="bg-green-600/20 text-green-400 px-4 py-1.5 rounded-full text-sm">
+                Member
+              </span>
             ) : hasPendingForMe ? (
-              <span className="bg-yellow-600/20 text-yellow-400 px-4 py-1.5 rounded-full text-sm">Pending</span>
+              <span className="bg-yellow-600/20 text-yellow-400 px-4 py-1.5 rounded-full text-sm">
+                Pending
+              </span>
             ) : team.status === 'recruiting' ? (
               <button
-                onClick={() => act(() => applyToTeam.mutateAsync({ teamId: team.id, applicantId: user.id }))}
+                onClick={() =>
+                  act(() =>
+                    applyToTeam.mutateAsync({ teamId: team.id, applicantId: user.id })
+                  )
+                }
                 disabled={applyToTeam.isPending}
                 className="bg-green-600 hover:bg-green-500 text-white px-5 py-1.5 rounded-full font-semibold text-sm"
               >
@@ -285,34 +388,45 @@ const TeamManage = () => {
             ) : (
               <span className="text-gray-500 text-sm">Not recruiting</span>
             )
-          ) : isManager && (
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-lg text-sm font-medium"
-            >
-              <i className="fas fa-edit mr-1"></i> {showSettings ? 'Cancel' : 'Edit team'}
-            </button>
+          ) : (
+            isManager && (
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-lg text-sm font-medium"
+              >
+                <i className="fas fa-edit mr-1"></i>{' '}
+                {showSettings ? 'Cancel' : 'Edit team'}
+              </button>
+            )
           )}
         </div>
       </div>
 
-      {/* Stats row (rating is here, not in header) */}
+      {/* Stats row */}
       {!loadingExtra && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-gray-800/40 rounded-lg p-2 text-center">
-            <div className="text-xl font-bold text-white">{winRate !== null ? `${winRate}%` : '—'}</div>
+            <div className="text-xl font-bold text-white">
+              {winRate !== null ? `${winRate}%` : '—'}
+            </div>
             <div className="text-[10px] text-gray-400">Win rate</div>
           </div>
           <div className="bg-gray-800/40 rounded-lg p-2 text-center">
-            <div className="text-xl font-bold text-white">{tournamentPlacements.length}</div>
+            <div className="text-xl font-bold text-white">
+              {tournamentPlacements.length}
+            </div>
             <div className="text-[10px] text-gray-400">Tournaments</div>
           </div>
           <div className="bg-gray-800/40 rounded-lg p-2 text-center">
-            <div className="text-xl font-bold text-white">{avgPlayerRating !== null ? avgPlayerRating : '—'}</div>
+            <div className="text-xl font-bold text-white">
+              {avgPlayerRating !== null ? avgPlayerRating : '—'}
+            </div>
             <div className="text-[10px] text-gray-400">Avg player rating</div>
           </div>
           <div className="bg-gray-800/40 rounded-lg p-2 text-center">
-            <div className="text-xl font-bold text-white">{team.rating ?? 1200}</div>
+            <div className="text-xl font-bold text-white">
+              {team.rating ?? 1200}
+            </div>
             <div className="text-[10px] text-gray-400">Team rating</div>
           </div>
         </div>
@@ -323,28 +437,61 @@ const TeamManage = () => {
           <h3 className="text-md font-semibold text-white">Edit team</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Team name</label>
-              <input className={inputClass} value={form.name} onChange={(e) => set('name', e.target.value)} required />
+              <label className="block text-xs font-medium text-gray-300 mb-1">
+                Team name
+              </label>
+              <input
+                className={inputClass}
+                value={form.name}
+                onChange={(e) => set('name', e.target.value)}
+                required
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-300 mb-1">Tag</label>
-              <input className={inputClass} value={form.tag} onChange={(e) => set('tag', e.target.value)} />
+              <input
+                className={inputClass}
+                value={form.tag}
+                onChange={(e) => set('tag', e.target.value)}
+              />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Region</label>
-              <select className={inputClass} value={form.regionId} onChange={(e) => set('regionId', e.target.value)}>
+              <label className="block text-xs font-medium text-gray-300 mb-1">
+                Region
+              </label>
+              <select
+                className={inputClass}
+                value={form.regionId}
+                onChange={(e) => set('regionId', e.target.value)}
+              >
                 <option value="">-- Select region --</option>
-                {regions.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
+                {regions.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1">Status</label>
-              <select className={inputClass} value={form.status} onChange={(e) => set('status', e.target.value)}>
-                {STATUS_OPTIONS.map((s) => (<option key={s.value} value={s.value}>{s.label}</option>))}
+              <label className="block text-xs font-medium text-gray-300 mb-1">
+                Status
+              </label>
+              <select
+                className={inputClass}
+                value={form.status}
+                onChange={(e) => set('status', e.target.value)}
+              >
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs font-medium text-gray-300 mb-1">Motto / Recruitment note</label>
+              <label className="block text-xs font-medium text-gray-300 mb-1">
+                Motto / Recruitment note
+              </label>
               <textarea
                 className={inputClass}
                 rows={2}
@@ -354,12 +501,22 @@ const TeamManage = () => {
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-xs font-medium text-gray-300 mb-1">Logo URL</label>
-              <input className={inputClass} value={form.logoUrl} onChange={(e) => set('logoUrl', e.target.value)} />
+              <label className="block text-xs font-medium text-gray-300 mb-1">
+                Logo URL
+              </label>
+              <input
+                className={inputClass}
+                value={form.logoUrl}
+                onChange={(e) => set('logoUrl', e.target.value)}
+              />
             </div>
           </div>
           <div className="flex justify-end">
-            <button type="submit" disabled={updateTeam.isPending} className="rtr-btn-primary px-4 py-1.5 text-sm">
+            <button
+              type="submit"
+              disabled={updateTeam.isPending}
+              className="rtr-btn-primary px-4 py-1.5 text-sm"
+            >
               {updateTeam.isPending ? 'Saving...' : 'Save changes'}
             </button>
           </div>
@@ -377,10 +534,23 @@ const TeamManage = () => {
           <h3 className="text-md font-semibold text-white mb-2">Achievements</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {tournamentPlacements.map((p, idx) => (
-              <div key={idx} className="flex items-center gap-2 bg-gray-800/30 p-1.5 rounded">
-                <span className="text-lg">{p.placement === 1 ? '🥇' : p.placement === 2 ? '🥈' : p.placement === 3 ? '🥉' : '🏅'}</span>
+              <div
+                key={idx}
+                className="flex items-center gap-2 bg-gray-800/30 p-1.5 rounded"
+              >
+                <span className="text-lg">
+                  {p.placement === 1
+                    ? '🥇'
+                    : p.placement === 2
+                    ? '🥈'
+                    : p.placement === 3
+                    ? '🥉'
+                    : '🏅'}
+                </span>
                 <div>
-                  <div className="text-white text-sm">{p.tournament?.title || 'Unknown tournament'}</div>
+                  <div className="text-white text-sm">
+                    {p.tournament?.title || 'Unknown tournament'}
+                  </div>
                   <div className="text-xs text-gray-400">#{p.placement}</div>
                 </div>
               </div>
@@ -394,11 +564,17 @@ const TeamManage = () => {
           <h3 className="text-md font-semibold text-white">Team Rating History</h3>
           {ratingHistory.length > 0 && (
             <div className="text-[10px] text-gray-400">
-              Current: <span className="text-indigo-300 font-mono font-bold">{ratingHistory[ratingHistory.length - 1]?.new_rating || team.rating}</span>
+              Current:{' '}
+              <span className="text-indigo-300 font-mono font-bold">
+                {ratingHistory[ratingHistory.length - 1]?.new_rating || team.rating}
+              </span>
               {ratingHistory.length > 1 && (
-                <span className="ml-2">Peak: <span className="text-indigo-300 font-mono font-bold">
-                  {Math.max(...ratingHistory.map(h => h.new_rating))}
-                </span></span>
+                <span className="ml-2">
+                  Peak:{' '}
+                  <span className="text-indigo-300 font-mono font-bold">
+                    {Math.max(...ratingHistory.map((h) => h.new_rating))}
+                  </span>
+                </span>
               )}
             </div>
           )}
@@ -406,9 +582,16 @@ const TeamManage = () => {
         {loadingHistory ? (
           <div className="text-xs text-gray-400">Loading...</div>
         ) : ratingHistory.length < 2 ? (
-          <div className="text-xs text-gray-400">Not enough data yet – play more matches to see rating history.</div>
+          <div className="text-xs text-gray-400">
+            Not enough data yet – play more matches to see rating history.
+          </div>
         ) : (
-          <Sparkline values={ratingHistory.map(h => h.new_rating)} width={600} height={60} className="w-full h-16" />
+          <Sparkline
+            values={ratingHistory.map((h) => h.new_rating)}
+            width={600}
+            height={60}
+            className="w-full h-16"
+          />
         )}
       </div>
 
@@ -417,30 +600,52 @@ const TeamManage = () => {
         <div className="rtr-card">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-md font-semibold text-white">Roster</h3>
-            <span className="text-xs text-gray-500">{activeMembers.length} players</span>
+            <span className="text-xs text-gray-500">
+              {activeMembers.length} players
+            </span>
           </div>
           {activeMembers.length === 0 ? (
             <p className="text-xs text-gray-400">{T.ROSTER_EMPTY}</p>
           ) : (
             <div className="space-y-1.5">
               {activeMembers.map((m) => (
-                <div key={m.user_id} className="flex items-center justify-between bg-gray-800/30 p-2 rounded text-sm">
+                <div
+                  key={m.user_id}
+                  className="flex items-center justify-between bg-gray-800/30 p-2 rounded text-sm"
+                >
                   <div>
-                    <Link to={`/profile/${m.user_id}`} className="text-white hover:text-indigo-300">
+                    <Link
+                      to={`/profile/${m.user_id}`}
+                      className="text-white hover:text-indigo-300"
+                    >
                       {personName(m.profile)}
-                      {m.is_captain && <span className="ml-1 text-[9px] bg-amber-900/50 text-amber-300 px-1 py-0.5 rounded">C</span>}
+                      {m.is_captain && (
+                        <span className="ml-1 text-[9px] bg-amber-900/50 text-amber-300 px-1 py-0.5 rounded">
+                          C
+                        </span>
+                      )}
                     </Link>
                     <div className="text-[10px] text-gray-500">
                       {m.lane?.name || 'No lane'} · Role: {m.role || 'player'}
                     </div>
                   </div>
+
                   {isManager && (
                     <div className="flex gap-1">
                       <button
                         onClick={() => {
-                          const newRole = window.prompt('Enter new role (player, captain, coach, analyst, substitute):', m.role || 'player');
+                          const newRole = window.prompt(
+                            'Enter new role (player, captain, coach, analyst, substitute):',
+                            m.role || 'player'
+                          );
                           if (newRole && TEAM_ROLES.includes(newRole)) {
-                            act(() => updateMember.mutateAsync({ teamId: team.id, userId: m.user_id, patch: { role: newRole } }));
+                            act(() =>
+                              updateMember.mutateAsync({
+                                teamId: team.id,
+                                userId: m.user_id,
+                                patch: { role: newRole },
+                              })
+                            );
                           } else if (newRole !== null) {
                             alert('Invalid role. Choose from: ' + TEAM_ROLES.join(', '));
                           }
@@ -449,14 +654,31 @@ const TeamManage = () => {
                       >
                         Change Role
                       </button>
+
                       <button
-                        onClick={() => act(() => updateMember.mutateAsync({ teamId: team.id, userId: m.user_id, patch: { is_captain: !m.is_captain } }))}
+                        onClick={() =>
+                          act(() =>
+                            updateMember.mutateAsync({
+                              teamId: team.id,
+                              userId: m.user_id,
+                              patch: { is_captain: !m.is_captain },
+                            })
+                          )
+                        }
                         className="text-[10px] text-gray-300 hover:text-indigo-300"
                       >
                         {m.is_captain ? 'Revoke' : 'Captain'}
                       </button>
+
                       <button
-                        onClick={() => act(() => removeMember.mutateAsync({ teamId: team.id, userId: m.user_id }))}
+                        onClick={() => setTradeTarget(m)}
+                        className="text-[10px] text-emerald-300 hover:text-emerald-200"
+                      >
+                        Trade
+                      </button>
+
+                      <button
+                        onClick={() => setKickTarget(m)}
                         className="text-[10px] text-red-400 hover:text-red-300"
                       >
                         Remove
@@ -487,18 +709,28 @@ const TeamManage = () => {
           ) : (
             <div className="space-y-1.5">
               {team.staff.map((s) => (
-                <div key={s.user_id} className="flex items-center justify-between bg-gray-800/30 p-2 rounded text-sm">
+                <div
+                  key={s.user_id}
+                  className="flex items-center justify-between bg-gray-800/30 p-2 rounded text-sm"
+                >
                   <div>
                     <span className="text-[9px] uppercase bg-gray-700 text-indigo-300 px-1.5 py-0.5 rounded">
                       {T.STAFF_ROLES[s.role] || s.role}
                     </span>
-                    <Link to={`/profile/${s.user_id}`} className="ml-2 text-white hover:text-indigo-300">
+                    <Link
+                      to={`/profile/${s.user_id}`}
+                      className="ml-2 text-white hover:text-indigo-300"
+                    >
                       {personName(s.profile)}
                     </Link>
                   </div>
                   {isManager && (
                     <button
-                      onClick={() => act(() => removeStaff.mutateAsync({ teamId: team.id, userId: s.user_id }))}
+                      onClick={() =>
+                        act(() =>
+                          removeStaff.mutateAsync({ teamId: team.id, userId: s.user_id })
+                        )
+                      }
                       className="text-[10px] text-red-400 hover:text-red-300"
                     >
                       Remove
@@ -511,7 +743,9 @@ const TeamManage = () => {
           {isManager && (
             <AddStaff
               existingIds={new Set((team.staff ?? []).map((s) => s.user_id))}
-              onAdd={(userId, role) => act(() => addStaff.mutateAsync({ teamId: team.id, userId, role }))}
+              onAdd={(userId, role) =>
+                act(() => addStaff.mutateAsync({ teamId: team.id, userId, role }))
+              }
             />
           )}
         </div>
@@ -520,28 +754,54 @@ const TeamManage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {isManager ? (
           <div className="rtr-card">
-            <h3 className="text-md font-semibold text-white mb-2">Pending applications</h3>
+            <h3 className="text-md font-semibold text-white mb-2">
+              Pending applications
+            </h3>
             {pendingApplies.length === 0 ? (
               <p className="text-xs text-gray-400">No applications</p>
             ) : (
               <div className="space-y-1.5">
                 {pendingApplies.map((a) => (
-                  <div key={a.id} className="flex justify-between items-center border-b border-gray-800 pb-1">
+                  <div
+                    key={a.id}
+                    className="flex justify-between items-center border-b border-gray-800 pb-1"
+                  >
                     <div>
-                      <Link to={`/profile/${a.applicant_id}`} className="text-white text-sm">
+                      <Link
+                        to={`/profile/${a.applicant_id}`}
+                        className="text-white text-sm"
+                      >
                         {personName(a.applicant)}
                       </Link>
-                      {a.message && <div className="text-[10px] text-gray-400">“{a.message.slice(0, 50)}”</div>}
+                      {a.message && (
+                        <div className="text-[10px] text-gray-400">
+                          “{a.message.slice(0, 50)}”
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-1">
                       <button
-                        onClick={() => act(() => respondToApplication.mutateAsync({ appId: a.id, accept: true }))}
+                        onClick={() =>
+                          act(() =>
+                            respondToApplication.mutateAsync({
+                              appId: a.id,
+                              accept: true,
+                            })
+                          )
+                        }
                         className="text-[10px] bg-green-600 hover:bg-green-500 text-white px-2 py-0.5 rounded"
                       >
                         Accept
                       </button>
                       <button
-                        onClick={() => act(() => respondToApplication.mutateAsync({ appId: a.id, accept: false }))}
+                        onClick={() =>
+                          act(() =>
+                            respondToApplication.mutateAsync({
+                              appId: a.id,
+                              accept: false,
+                            })
+                          )
+                        }
                         className="text-[10px] bg-gray-700 hover:bg-gray-600 text-white px-2 py-0.5 rounded"
                       >
                         Reject
@@ -567,7 +827,7 @@ const TeamManage = () => {
             <div className="text-xs text-gray-400">No matches recorded yet.</div>
           ) : (
             <div className="space-y-2">
-              {recentMatches.map(m => {
+              {recentMatches.map((m) => {
                 const ratingA = m.team_a_rating_before || 1200;
                 const ratingB = m.team_b_rating_before || 1200;
                 const winProbA = winProbability(ratingA, ratingB);
@@ -577,7 +837,10 @@ const TeamManage = () => {
                 const deltaB = (m.team_b_rating_after || 0) - ratingB;
 
                 return (
-                  <div key={m.id} className="border-b border-gray-800 pb-2 last:border-0">
+                  <div
+                    key={m.id}
+                    className="border-b border-gray-800 pb-2 last:border-0"
+                  >
                     {m.match_info && (
                       <div className="flex justify-center mb-1">
                         <span className="bg-gray-800 text-gray-300 text-[9px] px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -587,11 +850,21 @@ const TeamManage = () => {
                     )}
                     <div className="flex justify-between items-center text-xs">
                       <div className="flex-1">
-                        <Link to={`/team/${m.team_a.id}`} className="text-white hover:text-indigo-300 font-medium">
+                        <Link
+                          to={`/team/${m.team_a.id}`}
+                          className="text-white hover:text-indigo-300 font-medium"
+                        >
                           {m.team_a.name}
                         </Link>
                         <div className="text-[9px] text-gray-500">
-                          {ratingA}<span className={`ml-0.5 ${deltaA >= 0 ? 'text-green-400' : 'text-red-400'}`}>{deltaA >= 0 ? `+${deltaA}` : deltaA}</span>
+                          {ratingA}
+                          <span
+                            className={`ml-0.5 ${
+                              deltaA >= 0 ? 'text-green-400' : 'text-red-400'
+                            }`}
+                          >
+                            {deltaA >= 0 ? `+${deltaA}` : deltaA}
+                          </span>
                         </div>
                       </div>
                       <div className="text-center mx-1">
@@ -603,11 +876,21 @@ const TeamManage = () => {
                         </div>
                       </div>
                       <div className="flex-1 text-right">
-                        <Link to={`/team/${m.team_b.id}`} className="text-white hover:text-indigo-300 font-medium">
+                        <Link
+                          to={`/team/${m.team_b.id}`}
+                          className="text-white hover:text-indigo-300 font-medium"
+                        >
                           {m.team_b.name}
                         </Link>
                         <div className="text-[9px] text-gray-500">
-                          {ratingB}<span className={`ml-0.5 ${deltaB >= 0 ? 'text-green-400' : 'text-red-400'}`}>{deltaB >= 0 ? `+${deltaB}` : deltaB}</span>
+                          {ratingB}
+                          <span
+                            className={`ml-0.5 ${
+                              deltaB >= 0 ? 'text-green-400' : 'text-red-400'
+                            }`}
+                          >
+                            {deltaB >= 0 ? `+${deltaB}` : deltaB}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -621,11 +904,47 @@ const TeamManage = () => {
           )}
         </div>
       </div>
+
+      {/* Trades & Transfers */}
+      {isManager && (
+        <div className="rtr-card">
+          <h3 className="text-md font-semibold text-white mb-2">
+            {APP_CONSTANTS.TRADES.TITLE}
+          </h3>
+          <TradeRequestsInbox
+            requests={tradeRequests}
+            isManager={isManager}
+            currentTeamId={team.id}
+            onRespond={respondTrade}
+            onCancel={cancelTrade}
+            busyId={busyTradeId}
+          />
+        </div>
+      )}
+
+      {/* Modals */}
+      {kickTarget && (
+        <KickPlayerModal
+          player={kickTarget}
+          onClose={() => setKickTarget(null)}
+          onConfirm={confirmKick}
+          isPending={removeMember.isPending}
+        />
+      )}
+
+      {tradeTarget && (
+        <TradeRequestModal
+          team={team}
+          player={tradeTarget}
+          onClose={() => setTradeTarget(null)}
+          onSubmit={submitTrade}
+          isPending={createTradeRequest.isPending}
+        />
+      )}
     </div>
   );
 };
 
-// Helper component: AddStaff (unchanged)
 const STAFF_ROLE_OPTIONS = ['coach', 'scout', 'analyst'];
 const AddStaff = ({ existingIds, onAdd }) => {
   const { data: people = [] } = useDirectory();
@@ -651,7 +970,11 @@ const AddStaff = ({ existingIds, onAdd }) => {
           onChange={(e) => setRole(e.target.value)}
           className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white"
         >
-          {STAFF_ROLE_OPTIONS.map((r) => (<option key={r} value={r}>{T.STAFF_ROLES[r]}</option>))}
+          {STAFF_ROLE_OPTIONS.map((r) => (
+            <option key={r} value={r}>
+              {T.STAFF_ROLES[r]}
+            </option>
+          ))}
         </select>
         <input
           className="flex-grow bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs text-white placeholder-gray-500"
@@ -665,8 +988,14 @@ const AddStaff = ({ existingIds, onAdd }) => {
           <p className="text-[10px] text-gray-500">No users found</p>
         )}
         {results.map((p) => (
-          <div key={p.id} className="flex justify-between items-center border-b border-gray-800 pb-1">
-            <Link to={`/profile/${p.id}`} className="text-white text-xs hover:underline">
+          <div
+            key={p.id}
+            className="flex justify-between items-center border-b border-gray-800 pb-1"
+          >
+            <Link
+              to={`/profile/${p.id}`}
+              className="text-white text-xs hover:underline"
+            >
               {personName(p)}
             </Link>
             <button
