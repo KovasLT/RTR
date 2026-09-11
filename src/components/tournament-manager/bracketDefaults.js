@@ -1,7 +1,8 @@
-// components/tournament-manager/bracketDefaults.js
-// Single source of truth for bracket structures + placeholder labels.
+// 6-team double elimination (single grand final).
+// Upper bracket: seeds 1-4. Lower bracket starts at seeds 5-6.
 
 export const initialBracketState = () => ({
+    // ── Single elimination (kept for `playoffs` format) ──
     single: [
         {
             roundName: 'Quarterfinals',
@@ -27,65 +28,52 @@ export const initialBracketState = () => ({
         },
     ],
 
+    // ── Upper bracket (2 rounds) ──
     upper: [
         {
-            roundName: 'UB Quarterfinals',
+            roundName: 'Upper Round 1',
             slots: [
-                { label: 'A', matchId: '', placeholderA: 'Seed 1', placeholderB: 'Seed 8' },
-                { label: 'B', matchId: '', placeholderA: 'Seed 4', placeholderB: 'Seed 5' },
-                { label: 'C', matchId: '', placeholderA: 'Seed 3', placeholderB: 'Seed 6' },
-                { label: 'D', matchId: '', placeholderA: 'Seed 2', placeholderB: 'Seed 7' },
+                { label: 'A', matchId: '', placeholderA: 'Seed 1', placeholderB: 'Seed 4' },
+                { label: 'B', matchId: '', placeholderA: 'Seed 2', placeholderB: 'Seed 3' },
             ],
         },
         {
-            roundName: 'UB Semifinals',
+            roundName: 'Upper Final',
             slots: [
-                { label: 'E', matchId: '', placeholderA: 'A winner', placeholderB: 'B winner' },
-                { label: 'F', matchId: '', placeholderA: 'C winner', placeholderB: 'D winner' },
-            ],
-        },
-        {
-            roundName: 'UB Finals',
-            slots: [
-                { label: 'G', matchId: '', placeholderA: 'E winner', placeholderB: 'F winner' },
+                { label: 'C', matchId: '', placeholderA: 'A winner', placeholderB: 'B winner' },
             ],
         },
     ],
 
+    // ── Lower bracket (3 rounds) ──
     lower: [
         {
-            roundName: 'LB Round 1',
+            roundName: 'Lower Round 1',
             slots: [
-                { label: 'H', matchId: '', placeholderA: 'A loser', placeholderB: 'B loser' },
-                { label: 'I', matchId: '', placeholderA: 'C loser', placeholderB: 'D loser' },
+                { label: 'D', matchId: '', placeholderA: 'Seed 5', placeholderB: 'A loser' },
+                { label: 'E', matchId: '', placeholderA: 'Seed 6', placeholderB: 'B loser' },
             ],
         },
         {
-            roundName: 'LB Round 2',
+            roundName: 'Lower Semifinal',
             slots: [
-                { label: 'J', matchId: '', placeholderA: 'E loser', placeholderB: 'H winner' },
-                { label: 'K', matchId: '', placeholderA: 'F loser', placeholderB: 'I winner' },
+                { label: 'F', matchId: '', placeholderA: 'D winner', placeholderB: 'E winner' },
             ],
         },
         {
-            roundName: 'LB Round 3',
+            roundName: 'Lower Final',
             slots: [
-                { label: 'L', matchId: '', placeholderA: 'J winner', placeholderB: 'K winner' },
-            ],
-        },
-        {
-            roundName: 'LB Finals',
-            slots: [
-                { label: 'M', matchId: '', placeholderA: 'G loser', placeholderB: 'L winner' },
+                { label: 'G', matchId: '', placeholderA: 'C loser', placeholderB: 'F winner' },
             ],
         },
     ],
 
+    // ── Grand Finals ──
     grand: [
         {
             roundName: 'Grand Finals',
             slots: [
-                { label: 'N', matchId: '', placeholderA: 'G winner', placeholderB: 'M winner' },
+                { label: 'Finals', matchId: '', placeholderA: 'C winner', placeholderB: 'G winner' },
             ],
         },
     ],
