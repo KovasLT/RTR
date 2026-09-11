@@ -62,34 +62,63 @@ export function useTournaments(userId) {
     },
   });
 
-  // ── NEW: Close Tournament ──
+  // ── Close Tournament ──
+  // Writes placements to tournament_teams and awards ELO bonuses.
+  // Rolls status back to 'ongoing' if any write fails, so a tournament
+  // can never end up "closed but with no placements".
   const closeTournament = useMutation({
     mutationFn: async ({ id, placements, bonusMap }) => {
+      // 1. Flip status to closed first
       const { error: statusErr } = await supabase
       .from('tournaments')
       .update({ status: 'closed' })
       .eq('id', id);
       if (statusErr) throw statusErr;
 
-      for (const p of placements) {
-        await supabase
-        .from('tournament_teams')
-        .update({ placement: p.placement })
-        .eq('tournament_id', id)
-        .eq('team_id', p.teamId);
+      // 2. Write placements + award ELO. On any failure, roll status back.
+      try {
+        for (const p of placements) {
+          const { data: updatedRows, error: placeErr } = await supabase
+          .from('tournament_teams')
+          .update({ placement: p.placement })
+          .eq('tournament_id', id)
+          .eq('team_id', p.teamId)
+          .select('id'); // forces Supabase to return the touched row
 
-        const bonusAmount =
-        p.placement === 1 ? bonusMap.first :
-        p.placement === 2 ? bonusMap.second :
-        p.placement === 3 ? bonusMap.third :
-        0;
-        if (bonusAmount > 0) {
-          await supabase.rpc('award_tournament_bonus_elo', {
-            p_team_id: p.teamId,
-            p_bonus_elo: bonusAmount,
-            p_reason: `Tournament Standing Finish Rank: #${p.placement}`,
-          });
+          if (placeErr) throw placeErr;
+
+          // RLS silently filters rows out → data comes back as [] with no
+          // error. Treat "0 rows updated" as a hard failure.
+          if (!updatedRows || updatedRows.length === 0) {
+            throw new Error(
+              `Placement update matched 0 rows for team ${p.teamId}. ` +
+              `Check RLS on tournament_teams or the team_id value.`
+            );
+          }
+
+          const bonusAmount =
+          p.placement === 1 ? bonusMap.first :
+          p.placement === 2 ? bonusMap.second :
+          p.placement === 3 ? bonusMap.third :
+          0;
+
+          if (bonusAmount > 0) {
+            const { error: rpcErr } = await supabase.rpc('award_tournament_bonus_elo', {
+              p_team_id: p.teamId,
+              p_bonus_elo: bonusAmount,
+              p_reason: `Tournament Standing Finish Rank: #${p.placement}`,
+            });
+            if (rpcErr) throw rpcErr;
+          }
         }
+      } catch (err) {
+        // Roll the status back so we don't leave a half-closed tournament.
+        await supabase
+        .from('tournaments')
+        .update({ status: 'ongoing' })
+        .eq('id', id);
+
+        throw err;
       }
     },
     onSuccess: (_, { id }) => {
@@ -104,7 +133,7 @@ export function useTournaments(userId) {
     isLoading: tournamentsQuery.isLoading,
     createTournament,
     updateTournament,
-    closeTournament, // now exposed
+    closeTournament,
   };
 }
 
