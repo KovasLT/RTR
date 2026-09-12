@@ -11,6 +11,10 @@ from_team:teams!from_team_id(id, name, tag, logo_url),
 to_team:teams!to_team_id(id, name, tag, logo_url)
 `;
 
+/**
+ * Pending trade requests for a team. Resolved requests
+ * (accepted / rejected / cancelled) are hidden.
+ */
 export function useTeamTradeRequests(teamId) {
     return useQuery({
         queryKey: ['trade-requests', teamId],
@@ -20,9 +24,41 @@ export function useTeamTradeRequests(teamId) {
             .from('trade_requests')
             .select(TRADE_SELECT)
             .or(`from_team_id.eq.${teamId},to_team_id.eq.${teamId}`)
+            .eq('status', 'pending')                       // 👈 only pending
             .order('created_at', { ascending: false });
             if (error) throw error;
             return data || [];
+        },
+    });
+}
+
+/**
+ * Number of pending INCOMING trade requests for teams this user manages.
+ * Backs the sidebar badge on Team Manager.
+ */
+export function useIncomingTradeCount(userId) {
+    return useQuery({
+        queryKey: ['incoming-trades-count', userId],
+        enabled: !!userId,
+        queryFn: async () => {
+            // 1. Teams managed by this user
+            const { data: teams, error: teamErr } = await supabase
+            .from('teams')
+            .select('id')
+            .eq('manager_id', userId);
+            if (teamErr) throw teamErr;
+            if (!teams?.length) return 0;
+
+            const teamIds = teams.map((t) => t.id);
+
+            // 2. Count pending trades targeting those teams
+            const { count, error: countErr } = await supabase
+            .from('trade_requests')
+            .select('*', { count: 'exact', head: true })
+            .in('to_team_id', teamIds)
+            .eq('status', 'pending');
+            if (countErr) throw countErr;
+            return count || 0;
         },
     });
 }
@@ -71,7 +107,10 @@ export function useTradeRequestMutations() {
 
             return data;
         },
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['trade-requests'] }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['trade-requests'] });
+            qc.invalidateQueries({ queryKey: ['incoming-trades-count'] });   // 👈 NEW
+        },
     });
 
     const respondToTradeRequest = useMutation({
@@ -164,6 +203,7 @@ export function useTradeRequestMutations() {
         },
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['trade-requests'] });
+            qc.invalidateQueries({ queryKey: ['incoming-trades-count'] });   // 👈 NEW
             qc.invalidateQueries({ queryKey: ['team'] });
             qc.invalidateQueries({ queryKey: ['teams'] });
         },
@@ -181,7 +221,10 @@ export function useTradeRequestMutations() {
             if (error) throw error;
             return data;
         },
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['trade-requests'] }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['trade-requests'] });
+            qc.invalidateQueries({ queryKey: ['incoming-trades-count'] });   // 👈 NEW
+        },
     });
 
     return { createTradeRequest, respondToTradeRequest, cancelTradeRequest };

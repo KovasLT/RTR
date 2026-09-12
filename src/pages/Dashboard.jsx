@@ -11,6 +11,7 @@ import {
   useTeamMutations,
 } from '../hooks/useTeams.js';
 import { useScoutsWatchingMe, useMyWatchlist, useScoutMutations } from '../hooks/useScouting.js';
+import { useIncomingTradeCount } from '../hooks/useTradeRequests.js';
 // ❌ Removed: import { useEndorsements } from '../hooks/useEndorsements.js';
 import { supabase } from '../lib/supabase';
 import { APP_CONSTANTS } from '../app-constants';
@@ -182,6 +183,7 @@ const Dashboard = () => {
   const { data: profile } = useProfile(user?.id);
   const { data: myApps = [] } = useMyApplications(user?.id);
   const { data: myManagedTeams = [] } = useMyTeams(user?.id);
+  const { data: incomingTradeCount = 0 } = useIncomingTradeCount(user?.id);
   const [active, setActive] = useState('overview');
 
   // Use the central data hook – includes all static data + messaging (conversations, totalUnread)
@@ -195,7 +197,12 @@ const Dashboard = () => {
   const navRoles = isAdmin ? ALL_ROLES : roles;
   const inviteCount = myApps.filter((a) => a.status === 'pending' && a.type === 'invite').length;
   const managerPending = myManagedTeams.reduce((n, t) => n + (t.pendingCount || 0), 0);
-  const badgeFor = (r) => (r === 'player' ? inviteCount : r === 'team_manager' ? managerPending : 0);
+  const badgeFor = (r) =>
+    r === 'player'
+      ? inviteCount
+      : r === 'team_manager'
+      ? managerPending + incomingTradeCount
+      : 0;
   const isCustomAction = ['report-match', 'scrims', 'tournaments'].includes(active);
   const current = (active === 'overview' || isCustomAction || navRoles.includes(active)) ? active : 'overview';
 
