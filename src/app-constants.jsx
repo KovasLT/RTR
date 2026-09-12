@@ -474,6 +474,9 @@ export const APP_CONSTANTS = {
     ENDORSEMENTS: 'endorsements',
     // ----- NEW REFERRAL KEY -----
     INVITED_BY: 'Invited by',
+    // ----- NEW: achievements -----
+    ACHIEVEMENTS: 'Achievements',
+    ACHIEVEMENTS_EMPTY: 'No tournament achievements yet.',
   },
 
   // ========================================
