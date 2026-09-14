@@ -24,12 +24,28 @@ const CONTAINER_W = 940;
 const CONTAINER_H = 560;
 
 // ─────────────────────────────────────────────────────────────────────
-//  Match card — shows placeholder text when empty
+//  Match card — shows placeholder text when empty.
+//  In "edit" mode (onAssign provided) the header becomes a <select>
+//  that lets the manager pick which reported match fills this slot.
 // ─────────────────────────────────────────────────────────────────────
-const MatchCard = ({ match, participants, tournamentType, label, placeholderA, placeholderB }) => {
+const MatchCard = ({
+  match,
+  participants,
+  tournamentType,
+  label,
+  placeholderA,
+  placeholderB,
+  slotMatchId,
+  onAssign,
+  reportedMatches,
+}) => {
   const isEmpty = !match;
+  const canEdit = typeof onAssign === 'function';
+
   const wA = !isEmpty && match.score_team_a > match.score_team_b;
   const wB = !isEmpty && match.score_team_b > match.score_team_a;
+
+  const assignableMatches = (reportedMatches || []).filter((m) => !m.flagged);
 
   return (
     <div
@@ -39,13 +55,37 @@ const MatchCard = ({ match, participants, tournamentType, label, placeholderA, p
           : 'border-gray-700 bg-[#1a1c23] shadow-md'
       }`}
     >
-      <div className="bg-[#0f1219] border-b border-gray-800 px-2 py-[3px] flex items-center justify-between">
-        <span className="text-[10px] font-bold text-indigo-300 tracking-wider uppercase">
-          {label}
-        </span>
-        {isEmpty && <span className="text-[10px] text-gray-600 italic">TBD</span>}
-      </div>
+      {/* ── Header (label OR select) ─────────────────────────────── */}
+      {canEdit ? (
+        <div className="bg-[#0f1219] border-b border-gray-800 px-1 py-[1px]">
+          <select
+            className="w-full bg-transparent text-[10px] font-bold text-indigo-300 uppercase outline-none cursor-pointer py-[3px]"
+            value={slotMatchId || ''}
+            onChange={(e) => onAssign(e.target.value)}
+            title="Assign a reported match to this slot"
+          >
+            <option value="" className="text-gray-500 normal-case">
+              {label} · — Select match —
+            </option>
+            {assignableMatches.map((m) => (
+              <option key={m.id} value={m.id} className="normal-case">
+                {label}: {getParticipantName(m.team_a_id, participants, tournamentType)} vs{' '}
+                {getParticipantName(m.team_b_id, participants, tournamentType)} (
+                {m.score_team_a}-{m.score_team_b})
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="bg-[#0f1219] border-b border-gray-800 px-2 py-[3px] flex items-center justify-between">
+          <span className="text-[10px] font-bold text-indigo-300 tracking-wider uppercase">
+            {label}
+          </span>
+          {isEmpty && <span className="text-[10px] text-gray-600 italic">TBD</span>}
+        </div>
+      )}
 
+      {/* ── Slots ─────────────────────────────────────────────────── */}
       <div className="px-2 py-1">
         {/* Slot A */}
         <div className="flex justify-between items-center h-[26px]">
@@ -140,6 +180,7 @@ export default function DoubleEliminationBracket({
   reportedMatches,
   participants,
   tournamentType,
+  onAssignMatch, // optional — when provided, slots become editable
 }) {
   // Helper — pick the slot meta from bracketState
   const slot = (type, r, s) => bracketState[type]?.[r]?.slots?.[s] || {};
@@ -150,6 +191,10 @@ export default function DoubleEliminationBracket({
 
   const Card = ({ keyName, type, r, s }) => {
     const meta = slot(type, r, s);
+    const handleAssign = onAssignMatch
+      ? (matchId) => onAssignMatch(type, r, s, matchId)
+      : undefined;
+
     return (
       <PlacedCard pos={POS[keyName]}>
         <MatchCard
@@ -159,6 +204,9 @@ export default function DoubleEliminationBracket({
           label={meta.label || keyName}
           placeholderA={meta.placeholderA}
           placeholderB={meta.placeholderB}
+          slotMatchId={meta.matchId}
+          onAssign={handleAssign}
+          reportedMatches={reportedMatches}
         />
       </PlacedCard>
     );
@@ -167,11 +215,13 @@ export default function DoubleEliminationBracket({
   const strokeProps = { stroke: '#4b5563', strokeWidth: 1.5, fill: 'none' };
 
   // Reference card edges for the connectors
-  const rightOf  = (k) => POS[k].x + CARD_W;
-  const leftOf   = (k) => POS[k].x;
-  const slotAy   = (k) => POS[k].y + 34;   // top row of the card (center)
-  const slotBy   = (k) => POS[k].y + 60;   // bottom row of the card (center)
-  const midY     = (k) => POS[k].y + CARD_H / 2;
+  const rightOf = (k) => POS[k].x + CARD_W;
+  const leftOf  = (k) => POS[k].x;
+  const slotAy  = (k) => POS[k].y + 34; // top row of the card (center)
+  const slotBy  = (k) => POS[k].y + 60; // bottom row of the card (center)
+  const midY    = (k) => POS[k].y + CARD_H / 2;
+
+  const canEdit = typeof onAssignMatch === 'function';
 
   return (
     <div className="overflow-x-auto py-6">
@@ -255,6 +305,11 @@ export default function DoubleEliminationBracket({
         <span><span className="text-indigo-300 font-bold">A–C</span> · Upper bracket</span>
         <span><span className="text-amber-400 font-bold">D–G</span> · Lower bracket</span>
         <span><span className="text-green-400 font-bold">Finals</span> · Grand final</span>
+        {canEdit && (
+          <span className="text-indigo-400 normal-case tracking-normal">
+            · Pick a match from the dropdown, then hit <strong>Save Tree</strong>.
+          </span>
+        )}
       </div>
     </div>
   );
