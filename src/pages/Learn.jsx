@@ -27,6 +27,13 @@ const Learn = () => {
               Open the Simulator &rarr;
             </a>
           </div>
+          <div className="guide-card rtr-card">
+            <h3 className="text-lg font-semibold text-white">MOBA Expert — Word Trial by Kovas</h3>
+            <p className="text-gray-300 text-sm mt-1">Several mini games to help improve MOBA terminology — unscramble terms from their definitions, guess the letters, answer multiple-choice questions, or hunt down words in a crossword-style grid to reveal the pass code.</p>
+            <a href="https://kovaslt.github.io/moba-expert/" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 text-sm mt-2 inline-block">
+              Play the Games &rarr;
+            </a>
+          </div>
         </div>
       </section>
     </div>
