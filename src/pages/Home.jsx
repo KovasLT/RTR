@@ -47,7 +47,7 @@ const WelcomeView = () => {
             {APP_CONSTANTS.WELCOME.COMMUNITIES_TEXT}
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+          <div className="max-w-md mx-auto">
             {/* ETIC Link */}
             <a
               href={APP_CONSTANTS.WELCOME.LINKS.ETIC.URL}
@@ -61,22 +61,6 @@ const WelcomeView = () => {
               </h3>
               <p className="text-slate-400 text-sm mt-2">
                 {APP_CONSTANTS.WELCOME.LINKS.ETIC.DESC}
-              </p>
-            </a>
-
-            {/* THG Link */}
-            <a
-              href={APP_CONSTANTS.WELCOME.LINKS.THG.URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group bg-[#1e2743] hover:bg-[#253053] border border-slate-700 hover:border-indigo-500 transition-all duration-200 rounded-xl p-6 flex flex-col items-center"
-            >
-              <i className="fa-brands fa-discord text-4xl text-[#5865F2] mb-3 group-hover:scale-110 transition-transform"></i>
-              <h3 className="text-white font-bold text-lg">
-                {APP_CONSTANTS.WELCOME.LINKS.THG.NAME}
-              </h3>
-              <p className="text-slate-400 text-sm mt-2">
-                {APP_CONSTANTS.WELCOME.LINKS.THG.DESC}
               </p>
             </a>
           </div>
